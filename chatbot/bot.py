@@ -1,6 +1,9 @@
 import os
 from dotenv import load_dotenv
 import openai
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from chatbot.retriever import FAISSRetriever  # RAG 적용 (FAISS 검색)
 
 load_dotenv()  # .env 파일에서 환경 변수 로드
 
@@ -142,64 +145,79 @@ system_prompt='''
 # client는 openai 모듈 자체를 사용.
 client = openai
 
+# FAISS 검색 인스턴스 생성 (RAG 적용)
+retriever = FAISSRetriever()
+
 # 전역 대화 이력 (주의: 동시 요청/다중 사용자 환경에서는 별도 관리 필요)
 conversation_history = [{"role": "system", "content": system_prompt}]
 
-def get_gpt_response(client, system_prompt, question):
-    """사용자 질문에 대해 GPT 모델의 응답을 생성"""
-    try:
-        #수정 사항
-        if not isinstance(question, str):  # 문자열인지 확인
-            return "입력 오류: 질문은 문자열 형식이어야 합니다."
-        ##
-        conversation_history.append({"role": "user", "content": question})
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini", messages=conversation_history
-        )
-        assistant_reply = completion.choices[0].message.content
-        conversation_history.append({"role": "assistant", "content": assistant_reply})
-        return assistant_reply
-    except Exception as e:
-        return f"오류 발생: {e}"
 
-def chat_with_gpt(client, system_prompt):
-    """사용자 입력을 받아 GPT와 대화하며 응답을 처리"""
-    
-    print("호우섬에 오신 것을 환영합니다!")
+### 📌 **RAG 기반 GPT 응답 생성 함수**
+def get_rag_response(client, question):
+    """RAG 기반 GPT 응답 생성"""
+    retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
+
+    # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
+    if retrieved_info:
+        system_prompt_with_context = f"""
+        당신은 음식점 고객 서비스 챗봇입니다. 다음의 검색된 정보를 참고하여 답변하세요:
+
+        --- 검색된 정보 ---
+        {retrieved_info}
+        -------------------
+
+        고객의 질문에 대해 관련 정보만 제공하고, 확인되지 않은 내용은 '확인되지 않은 정보입니다.'라고 답하세요.
+        """
+    else:
+        system_prompt_with_context = system_prompt
+
+    # 대화 기록 업데이트
+    conversation_history.append({"role": "system", "content": system_prompt_with_context})
+    conversation_history.append({"role": "user", "content": question})
+
+    # GPT-4o 응답 생성
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini", messages=conversation_history
+    )
+    assistant_reply = completion.choices[0].message.content
+    conversation_history.append({"role": "assistant", "content": assistant_reply})
+
+    return assistant_reply
+
+
+### 📌 **RAG 기반으로 사용자와 대화하는 함수**
+def chat_with_gpt(client):
+    """RAG 기반 챗봇 실행"""
+    print("호우섬에 오신 것을 환영합니다! 😊")
     print("주문 또는 궁금한 점을 입력하세요. 대화를 종료하려면 '종료' 또는 '그만'을 입력하세요.\n")
 
     while True:
-        question = input("작성해주세요.: ")
+        question = input("작성해주세요: ")
 
-        # '종료' 또는 '그만' 입력 시 프로그램 종료
         if question.lower() in ["종료", "그만"]:
             print("프로그램을 종료합니다.")
             break
 
-        # 메뉴 사진 요청 처리(수정)
-        if "메뉴 사진 보여줘" in question:
-            show_menu_image()
-            continue
-
-        # GPT 응답 생성 및 출력
-        response = get_gpt_response(client, system_prompt, question)
+        # RAG 기반 응답 생성
+        response = get_rag_response(client, question)
         print(response)
 
-        # GPT 응답 기반으로 함수 호출 처리
+        # 추가적인 GPT 함수 호출 처리 (필요 시)
         gpt_functioncall(client, response)
         print("-------------------------------------------------------")
-        
-# 메뉴 사진을 보여주는 함수 예시
-def show_menu_image():
-    print("여기 음식점의 메뉴 사진입니다! 😊")
-    # 메뉴 사진을 여기에 출력하는 로직 추가 예정정
 
-# GPT 함수 호출 예시 (실제 사용에 맞게 수정)
+### 📌 **메뉴 사진을 보여주는 함수**
+def show_menu_image():
+    """메뉴 사진 출력 (추후 구현)"""
+    print("여기 음식점의 메뉴 사진입니다! 😊")
+    # 실제 이미지 표시 기능 추가 예정
+
+### 📌 **GPT 기반 행동 요청 처리 함수**
 def gpt_functioncall(client, response):
-    # 여기서는 응답에 따라 추가적인 처리를 할 수 있다다.
+    """GPT 응답 기반으로 특정 행동 처리 (추후 구현)"""
     pass
 
-
-# 인터랙티브 모드를 직접 실행할 때만 아래 코드가 실행.
+# 직접 실행 시 인터랙티브 모드 시작
 if __name__ == '__main__':
-    chat_with_gpt(client, system_prompt)
+    chat_with_gpt(client)
+
