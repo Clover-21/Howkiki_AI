@@ -186,7 +186,7 @@ def get_rag_response(client, question):
 
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
-def chat_with_gpt(client):
+def chat_with_gpt(client,session_token):
     """RAG 기반 챗봇 실행"""
     print("호우섬에 오신 것을 환영합니다! 😊")
     print("주문 또는 궁금한 점을 입력하세요. 대화를 종료하려면 '종료' 또는 '그만'을 입력하세요.\n")
@@ -203,7 +203,7 @@ def chat_with_gpt(client):
         print(response)
 
         # 추가적인 GPT 함수 호출 처리 (필요 시)
-        gpt_functioncall(client, response)
+        gpt_functioncall(client, response,session_token)
         print("-------------------------------------------------------")
 
 ### 📌 **메뉴 사진을 보여주는 함수**
@@ -213,11 +213,128 @@ def show_menu_image():
     # 실제 이미지 표시 기능 추가 예정
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
-def gpt_functioncall(client, response):
-    """GPT 응답 기반으로 특정 행동 처리 (추후 구현)"""
-    pass
+def gpt_functioncall(client, response,session_token):
+    """GPT 응답 기반으로 특정 행동 처리 """
+     
+    function_prompt = '''
+    You are a helpful assistant for table 5. 사용자의 최종 주문만을 정리하고 처리하세요.
+    '''
+    try:
+        # GPT 모델 호출
+        gpt_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": function_prompt},
+                {"role": "user", "content": response}
+            ],
+            functions=function_specifications,
+            function_call="auto"
+        )
+
+        # 함수 호출 여부 확인
+        if gpt_response.choices[0].message.function_call:
+            #print("함수 호출 감지")
+            function_name = gpt_response.choices[0].message.function_call.name
+            arguments = gpt_response.choices[0].message.function_call.arguments
+
+            # 함수 호출이 주문 생성일 경우
+            if function_name == "create_order":
+                #print("create_order 호출함")
+                import json
+                args = json.loads(arguments)
+                #print("json 파싱 성공")
+                final_order_data = {
+                    "isTakeOut": args["isTakeOut"],  # 사용자 입력 반영
+                    "tableNumber": 5, #테이블 5로 설정정
+                    "finalOrderDetails": [
+                        {"menuName": item["menuName"], "quantity": item["quantity"]}
+                        for item in args["finalOrderDetails"]
+                    ]
+                }
+                #주문 API 호출(세션 토근 포함함)
+                #print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
+                result = post_order(final_order_data,session_token)
+                return result
+            else:
+                return f"❌ 알 수 없는 함수 호출: {function_name}"
+        else:
+            return "Assistant Response: 함수 호출이 되지 않습니다."
+
+    except Exception as e:
+        #print("❌ JSON 파싱 오류 발생:", e)
+        #print("❌ 문제의 arguments 값:", arguments)
+        return f"❌ 함수 호출 처리 중 오류 발생: {e}"
+
+
+import requests, json
+# 함수: 주문 데이터를 서버로 전송
+api_url = "http://15.164.233.144:8080/stores/1/orders"
+
+def post_order(final_order_data,session_token):
+    #rint("post_order 호출함")
+    """
+    최종 주문 데이터를 POST 요청으로 서버에 전송합니다.
+    요청 헤더에 sessionToken을 포함해야 함.
+    """
+    headers = {
+        "sessionToken": session_token,
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        
+        response = requests.post(api_url, json=final_order_data,headers=headers)
+
+        if response.status_code == 200:
+            response_data = response.json()
+            print("✅ 주문 생성 성공!")
+            #print(json.dumps(response_data, indent=4, ensure_ascii=False))
+        else:
+            print(f"❌ 주문 생성 실패: HTTP {response.status_code}")
+            print(response.json())
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 요청 실패: {e}")
+
+
+# 함수 호출을 지원하기 위한 함수 사양 정의
+function_specifications = [
+    {
+        "name": "create_order",  # 함수 이름: create_order
+        "description":"Processes the final confirmed order only when '최종 주문 내역은' is explicitly mentioned in the user input.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "isTakeOut": { #테이크 타웃 관련 변수수
+                    "type": "boolean",
+                    "description": "True if the order is for takeout, False if it is for dine-in."
+                },
+                "finalOrderDetails": {  # 'finalOrderDetails' 최종 주문임
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "menuName": {
+                                "type": "string",
+                                "description": "Name of the menu item in 최종 주문 내역."
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "description": "Quantity of the menu item in 최종 주문 내역."
+                            }
+                        },
+                        "required": ["menuName", "quantity"]
+                    },
+                    "description": "List of menu items in the final confirmed order."
+                }
+            },
+            "required": ["finalOrderDetails"]
+        }
+    }
+]
 
 # 직접 실행 시 인터랙티브 모드 시작
 if __name__ == '__main__':
-    chat_with_gpt(client)
+    session_token="1235" #임의로 세션토큰 지정
+    chat_with_gpt(client,session_token)
 
