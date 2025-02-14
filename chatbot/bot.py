@@ -59,21 +59,7 @@ system_prompt='''
      - 양장피: 1개
      식사 방법: 포장
      주문하신 메뉴는 곧 준비될 예정입니다. 감사합니다! 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요.}
-
-   - 최종 주문 내역 출력 후 또 주문할 경우, 이전 최종 주문 내역은 출력하지 않고 새 주문만 처리하세요.
-     예:
-     GPT:{최종 주문 내역은 다음과 같습니다:
-     - 라구짜장: 1개
-     - 양장피: 1개
-     식사 방법: 포장장
-     주문하신 내용은 곧 준비될 예정입니다. 감사합니다! 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요.}
-
-     **최종 주문 출력 이후 사용자가 "양장피 하나 추가" 또는 "양장피 하나 주문" 이라고 하면:
-     GPT: {양장피 1개 주문하겠습니다. 현재 주문 내역은 다음과 같습니다:
-     - 양장피: 1개
-     주문을 확정해도 될까요?}
-    
-   
+       
 
 2. **매장 정보 제공**:
    - 영업시간, 위치, 메뉴 항목, Wi-Fi 정보 등 음식점에 대한 자주 묻는 질문에 대해 정확하고 간결한 답변을 제공합니다.
@@ -99,30 +85,25 @@ system_prompt='''
     - 사용자가 주문을 확정한 이후에는 요청 사항을 다음과 같이 처리합니다:
       - 블랙 하가우 테이크아웃 요청, 음악 소리 조절, 에어컨 온도 조정, 접시 치우기, 사장님 호출 등과 같은 요청사항이 들어오면 다음과 같이 응답하세요:
         - "해당 요청을 사장님께 전달해 드릴까요?"
-        - 사용자가 '응', 'o' 등 긍정을 하면 "요청을 전달해드렸어요."라고 응답하세요.
+        - 사용자가 '응', 'o' 등 긍정을 하면 "(사용자 요청 사항을 재업근하면서) 요청을 전달해드렸어요."라고 응답하세요.
 
 6. **최종 주문 완료 상태 확인**:
-   - 최종 주문 완료 여부를 확인하려면 **대화 기록에 '최종 주문 내역은 다음과 같습니다.' 문장이 포함되었는지 확인하세요.**
+   - 최종 주문 완료 여부를 확인하려면 **대화 기록에 '최종 주문 내역 있음' 문장이 포함되었는지 확인하세요.**
    - 이 문장이 포함된 경우, 최종 주문이 완료된 상태로 간주하고 요청 사항을 처리하세요.
    - 요청 사항이 들어오면 **"해당 요청을 사장님께 전달해 드릴까요?"**라고 묻고, 사용자가 긍정하면 요청을 수행하세요.
    - 건의 사항(예: 서비스 개선 의견 등)은 **"건의 사항으로 남길까요?"**라고 물어보세요.
 
 7. **최종 주문 상태 예시**:
-    - **최종 주문을 한번이라도 하지 않았을 때** (대화 기록에 '최종 주문 내역은 다음과 같습니다.' 문장이 없을 시)
+    - **최종 주문을 한번이라도 하지 않았을 때** '최종 주문 내역 있음' 문장이 없을 시
       - 사용자: "에어컨 좀 꺼주세요."
-      - GPT: "최종 주문을 하지지 않아 요청을 처리할 수 없습니다. 먼저 주문을 해 주시겠어요? 😊"
+      - GPT: "최종 주문을 하지 않아 요청을 처리할 수 없습니다. 먼저 주문을 해 주시겠어요? 😊"
 
-    - **최종 주문이 있을 때때**: 대화 기록에 '최종 주문 내역은 다음과 같습니다.' 문장이 있을 시)
-      - **이전 대화 기록에 다음과 같은 이력이 있으면 요청 사항을 수락합니다.**
-        {최종 주문 내역은 다음과 같습니다:
-        - 소롱포: 3개
-        - 식사 방법: 매장 식사
-        주문하신 메뉴는 곧 준비될 예정입니다. 감사합니다! 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요. 😊}
+    - **최종 주문이 있을 때**:
         
       - 사용자: "에어컨 좀 꺼주세요." "음악 소리 좀 줄여줘" 등등
       - GPT: "해당 요청을 사장님께 전달해 드릴까요?"
       - 사용자: "응"
-      - GPT: "에어컨을 꺼달라는 요청을 전달해드렸어요." (사용자 요청 사항을 언급하며 응답한다.)
+      - GPT: "에어컨을 꺼달라는 요청을 전달해드렸어요.","음악 소리를 줄여달라는 요청을 전달해드렸어요." (사용자 요청 사항을 재언급하며 응답한다.)
 
 8. **메뉴 사진 제공 처리**
    고객이 "메뉴를 보여줘"라고 요청하면 메뉴 사진을 제공합니다.
@@ -170,6 +151,16 @@ def get_rag_response(client, question):
     """RAG 기반 GPT 응답 생성"""
     retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
 
+    # 최종 주문 내역이 있는지 확인
+    final_order_phrase = "최종 주문 내역은 다음과 같습니다"
+    is_final_order = any(final_order_phrase in msg["content"] for msg in conversation_history if msg["role"] == "assistant")
+    
+    # 최종 주문이 감지되면 대화 기록 초기화
+    if is_final_order:
+        conversation_history.clear()
+        conversation_history.append({"role": "system", "content": system_prompt})
+        conversation_history.append({"role": "system", "content": "최종 주문 내역 있음"})
+
     # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
     if retrieved_info:
         system_prompt_with_context = f"""
@@ -193,7 +184,7 @@ def get_rag_response(client, question):
         model="gpt-4o-mini", messages=conversation_history
     )
     assistant_reply = completion.choices[0].message.content
-    #conversation_history.append({"role": "assistant", "content": assistant_reply})
+    conversation_history.append({"role": "assistant", "content": assistant_reply})
 
     return assistant_reply
 
@@ -214,10 +205,6 @@ def chat_with_gpt(client,session_token):
         # RAG 기반 응답 생성
         response = get_rag_response(client, question)
         print(response)
-        if conversation_history=="최종 주문 내역은 다음과 같습니다.":
-            conversation_history=[{"role": "system", "content": system_prompt}]
-        else:
-            conversation_history.append({"role": "assistant", "content": response})
 
         # 추가적인 GPT 함수 호출 처리 (필요 시)
         gpt_functioncall(client, response,session_token)
@@ -305,7 +292,7 @@ def post_order(final_order_data,session_token):
 
     try:
         
-        response = requests.post(api_url, json=final_order_data,headers=headers)
+        response = requests.post(order_api_url, json=final_order_data,headers=headers)
 
         if response.status_code == 200:
             response_data = response.json()
