@@ -132,13 +132,16 @@ def get_rag_response(client, question):
     # 최종 주문 내역이 있는지 확인
     final_order_phrase = "최종 주문 내역은 다음과 같습니다"
     is_final_order = any(final_order_phrase in msg["content"] for msg in conversation_history if msg["role"] == "assistant")
-    
+
+   
+
     # 최종 주문이 감지되면 대화 기록 초기화
     if is_final_order:
         conversation_history.clear()
         conversation_history.append({"role": "system", "content": system_prompt})
         conversation_history.append({"role": "system", "content": "최종 주문 내역 있음"})
 
+        
     # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
     if retrieved_info:
         system_prompt_with_context = f"""
@@ -282,7 +285,7 @@ def post_order(final_order_data,session_token):
 
     try:
         
-        response = requests.post(order_api_url, json=final_order_data,headers=headers)
+        response = requests.post(api_url, json=final_order_data,headers=headers)
 
         if response.status_code == 200:
             response_data = response.json()
