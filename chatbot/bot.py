@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import openai
 import sys
+import requests, json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from chatbot.retriever import FAISSRetriever  # RAG 적용 (FAISS 검색)
 
@@ -50,7 +51,8 @@ system_prompt='''
      주문을 확정해도 될까요? 🤗}
 
    - 최종 주문 내역을 파악한 후 "최종 주문은 다음과 같습니다."라는 멘트를 작성하세요.
-   - 사용자가 "어, o, 주문할게" 등의 긍정의 답을 하면 "포장인가요, 매장 식사인가요?"라고 묻고,
+   - 사용자가 "어, o, 주문할게" 등의 긍정의 답을 하면 
+    "포장인가요, 매장 식사인가요?"라고 묻고,
      사용자의 답변에 따라 식사 방법('포장', '매장 식사')을 포함하여 출력하세요.
 
      예시:
@@ -81,6 +83,31 @@ system_prompt='''
       - 블랙 하가우 테이크아웃 요청, 음악 소리 조절, 에어컨 온도 조정, 접시 치우기, 사장님 호출 등과 같은 요청사항이 들어오면 다음과 같이 응답하세요:
         - "해당 요청을 사장님께 전달해 드릴까요?"
         - 사용자가 '응', 'o' 등 긍정을 하면 "(사용자 요청 사항을 재업근하면서) 요청을 전달해드렸어요."라고 응답하세요.
+        예를 들어,
+        {사용자: 블랙 하가우 테이크아웃 할 수 있을까요?
+        GPT: 해당 사항을 사장님께 전달해 드릴까요?
+        사용자: 응
+        GPT: 
+        -요청 사항 내용:블랙 하가우 테이크아웃
+        요청을 전달해드렸어요. 블랙 하가우 테이크아웃을 할 수 있도록 하겠습니다. 😊 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요!}
+        ,{사용자: 음악 소리 좀 줄여줘.
+        GPT: 해당 사항을 사장님께 전달해 드릴까요?
+        사용자: 네
+        GPT: 
+        -요청 사항 내용: 음악 소리 좀 줄여줘
+        요청을 전달해드렸어요. 음악 소리를 줄여달라고 전달했습니다. 😊 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요!},
+        {사용자: 에어컨 온도 좀 낮춰주세요.
+        GPT: 해당 사항을 사장님께 전달해 드릴까요?
+        사용자: o
+        GPT: 
+        -요청 사항 내용: 에어컨 온도 낮춰주세요.
+        요청을 전달해드렸어요. 에어컨 온도를 낮춰달라고 사장님께 전달해드리겠습니다. 😊 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요!},
+        {사용자: 사장님 불러주세요.
+        GPT: 해당 사항을 사장님께 전달해 드릴까요?
+        사용자: 네
+        GPT: 
+        -요청 사항 내용: 사장님 불러주세요.
+        요청을 전달해드렸어요. 사장님을 호출을 도와드리겠습니다. 😊 추가로 필요한 사항이나 궁금한 점이 있으시면 언제든지 말씀해 주세요!}
 
 
 7. **메뉴 사진 제공 처리**
@@ -102,6 +129,19 @@ system_prompt='''
    - 사용자가 서비스 개선점(예: 음악 소리가 크다, 테이블이 좁다 등)을 말하면 "건의 사항으로 남길까요?"라고 묻습니다.
    - 사용자가 긍정적인 답을 하면 "건의 사항으로 남겼습니다."라고 응답하세요.
    - 건의 사항은 기록으로 남기고 필요 시 사장님께 전달된다는 점을 안내하세요.
+   예를 들어,
+   {사용자: 테이블이 너무 좁아
+    GPT: "해당 사항을 전달할까요?
+    사용자: o
+    GPT: 
+    -건의 사항 내용: 테이블이 너무 좁아요.
+    건의 사항으로 남겼습니다.  소중한 의견 감사합니다. 😊  고객님들의 편안한 식사를 위해 테이블 배치를 조정하는 방안을 내부적으로 논의해 보겠습니다!},
+    {사용자: 실내가 너무 추워요
+    GPT: "건의 사항으로 남길까요?
+    사용자: 네
+    GPT: 
+    -건의 사항 내용: 실내가 너무 추워요.
+    건의 사항으로 남겼습니다. 소중한 의견 감사합니다. 😊 앞으로 실내 온도 관리를 더욱 신경 쓰겠습니다!}
 
 9. **접근성**:
    - 대화 흐름을 간단하고 직관적으로 유지하여 모든 연령대와 기술 수준의 고객이 쉽게 사용할 수 있도록 합니다.
@@ -190,6 +230,7 @@ def chat_with_gpt(client,session_token):
         if "해당 요청을 사장님께 전달해 드릴까요?" in response:
             if has_final_order:
                 print(response)
+                gpt_functioncall(client, response,session_token)
                 
             else:
                 print("최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊")
@@ -197,7 +238,7 @@ def chat_with_gpt(client,session_token):
         else: 
             print(response)
             
-        gpt_functioncall(client, response,session_token)
+            gpt_functioncall(client, response,session_token)
         print("-------------------------------------------------------")
 
 ### 📌 **메뉴 사진을 보여주는 함수**
@@ -211,7 +252,12 @@ def gpt_functioncall(client, response,session_token):
     """GPT 응답 기반으로 특정 행동 처리 """
      
     function_prompt = '''
-    You are a helpful assistant for table 5. 사용자의 최종 주문만을 정리하고 처리하세요.
+    You are a helpful assistant for table 5. 
+    사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용도 감지하여 처리리하세요. 
+
+    ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('send_request_notification')를 호출하세요.***
+    **건의 사항이 입력되면 반드시 함수 ("send_suggestion")을 호출하세요.
+    
     '''
     try:
         # GPT 모델 호출
@@ -234,7 +280,7 @@ def gpt_functioncall(client, response,session_token):
             # 함수 호출이 주문 생성일 경우
             if function_name == "create_order":
                 #print("create_order 호출함")
-                import json
+                
                 args = json.loads(arguments)
                 #print("json 파싱 성공")
                 final_order_data = {
@@ -249,6 +295,43 @@ def gpt_functioncall(client, response,session_token):
                 #print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
                 result = post_order(final_order_data,session_token)
                 return result
+            
+            #요청 사항 생성 함수
+            elif function_name == "create_request_notification":
+                print("✅ create_request_notification 호출됨")  # 🛠 확인 로그 추가
+                print(f" [DEBUG] function_call.arguments: {gpt_response.choices[0].message.function_call.arguments}")
+                print(f" [DEBUG] arguments 타입: {type(arguments)}")
+
+                # JSON 파싱 확인
+                try:
+                    if isinstance(arguments, str):
+                        print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
+                        args = json.loads(arguments)  # JSON 파싱
+                    else:
+                        print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
+                        args = arguments
+
+                    print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
+
+                    # 요청 데이터 생성
+                    request_data = {
+                        "tableNumber": 5,
+                        "content": args["content"]
+                    }
+                    print(f"🔹 [DEBUG] request_data 생성 완료: {request_data}")  # 요청 데이터 확인
+
+                    # 🚀 send_request_notification 실행 전 로그 추가
+                    print("🚀 [DEBUG] send_request_notification 실행 시도...")
+                    result = send_request_notification(request_data, session_token)  # 여기서 멈추는지 확인
+                    print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
+
+                    return result  # 성공적으로 실행되었는지 확인
+
+                except Exception as e:
+                    print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
+                    return {"status": "error", "message": str(e)}
+
+
             else:
                 return f"❌ 알 수 없는 함수 호출: {function_name}"
         else:
@@ -295,6 +378,56 @@ def post_order(final_order_data,session_token):
         print(f"❌ 요청 실패: {e}")
 
 
+# 함수: 요청 데이터를 서버로 전송
+
+def send_request_notification(request_data, session_token):
+    print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
+
+    headers = {
+        #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
+        "sessionToken": session_token,
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
+    #print(f"🔹 [DEBUG] API 요청 URL: {request_api_url}")
+    #print(f"🔹 [DEBUG] 요청 헤더: {headers}")  
+
+    try:
+        #print("🚀 [DEBUG] 서버로 요청을 보냅니다...")
+        response = requests.post(request_api_url, json=request_data, headers=headers, timeout=10)
+        
+        #print("✅ [DEBUG] 요청이 실행됨!")  # 이 로그가 찍히는지 확인!!
+        #print(f"🔍 [DEBUG] 응답 코드: {response.status_code}")
+        #print(f"🔹 [DEBUG] 응답 본문: {response.text}")
+
+        if response.status_code == 200:
+            response_data = response.json()
+            print("✅ 요청 사항 알림 전송 성공!")
+            return response_data
+
+        elif response.status_code == 400:
+            print("❌ 요청 실패: 400 Bad Request (잘못된 요청)")
+            return {"status": 400, "error": "Bad Request", "message": response.text}
+
+        elif response.status_code == 404:
+            print("❌ 요청 실패: 404 Not Found (API가 존재하지 않음)")
+            return {"status": 404, "error": "Not Found", "message": response.text}
+
+        else:
+            print(f"❌ 요청 사항 알림 전송 실패: HTTP {response.status_code}")
+            return {"status": response.status_code, "message": response.text}
+
+    except requests.exceptions.Timeout:
+        print("⏳ 요청 시간이 초과되었습니다.")
+        return {"status": "error", "message": "Request timeout"}
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 요청 중 예외 발생: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 # 함수 호출을 지원하기 위한 함수 사양 정의
 function_specifications = [
     {
@@ -328,6 +461,20 @@ function_specifications = [
             },
             "required": ["finalOrderDetails"]
         }
+    },
+    {
+    "name": "create_request_notification", #함수: create_request_notification 요청 사항 호출출
+    "description": "Handles user requests such as temperature adjustments, music volume changes. If the assistant's response includes phrases like '요청 사항 내용', this function must be triggered.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "content": {
+                "type": "string",
+                "description": "The request content describing the user's need."
+            }
+        },
+        "required": ["content"]
+        }   
     }
 ]
 
