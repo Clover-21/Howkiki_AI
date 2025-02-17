@@ -137,7 +137,7 @@ system_prompt='''
     -건의 사항 내용: 테이블이 너무 좁아요.
     건의 사항으로 남겼습니다.  소중한 의견 감사합니다. 😊  고객님들의 편안한 식사를 위해 테이블 배치를 조정하는 방안을 내부적으로 논의해 보겠습니다!},
     {사용자: 실내가 너무 추워요
-    GPT: "건의 사항으로 남길까요?
+    GPT: "해당 사항을 전달할까요?
     사용자: 네
     GPT: 
     -건의 사항 내용: 실내가 너무 추워요.
@@ -298,39 +298,69 @@ def gpt_functioncall(client, response,session_token):
             
             #요청 사항 생성 함수
             elif function_name == "create_request_notification":
-                print("✅ create_request_notification 호출됨")  # 🛠 확인 로그 추가
-                print(f" [DEBUG] function_call.arguments: {gpt_response.choices[0].message.function_call.arguments}")
-                print(f" [DEBUG] arguments 타입: {type(arguments)}")
+                #print("✅ create_request_notification 호출됨")  # 🛠 확인 로그 추가
+                #print(f" [DEBUG] function_call.arguments: {gpt_response.choices[0].message.function_call.arguments}")
+                #print(f" [DEBUG] arguments 타입: {type(arguments)}")
 
                 # JSON 파싱 확인
                 try:
                     if isinstance(arguments, str):
-                        print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
+                        #print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
                         args = json.loads(arguments)  # JSON 파싱
                     else:
-                        print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
+                        #print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
                         args = arguments
 
-                    print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
+                    #print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
 
                     # 요청 데이터 생성
                     request_data = {
                         "tableNumber": 5,
                         "content": args["content"]
                     }
-                    print(f"🔹 [DEBUG] request_data 생성 완료: {request_data}")  # 요청 데이터 확인
+                    #print(f"🔹 [DEBUG] request_data 생성 완료: {request_data}")  # 요청 데이터 확인
 
                     # 🚀 send_request_notification 실행 전 로그 추가
-                    print("🚀 [DEBUG] send_request_notification 실행 시도...")
+                    #print("🚀 [DEBUG] send_request_notification 실행 시도...")
                     result = send_request_notification(request_data, session_token)  # 여기서 멈추는지 확인
-                    print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
+                    #print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
 
                     return result  # 성공적으로 실행되었는지 확인
 
                 except Exception as e:
-                    print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
+                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
                     return {"status": "error", "message": str(e)}
 
+            #건의의 사항 생성 함수  
+            elif function_name =="create_suggestion":
+                #print("create_suggestion 호출됨")
+                # JSON 파싱 확인
+                try:
+                    if isinstance(arguments, str):
+                        #print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
+                        args = json.loads(arguments)  # JSON 파싱
+                    else:
+                        print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
+                        args = arguments
+
+                    #print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
+
+                    # 요청 데이터 생성
+                    suggestion_data = {
+                        "content": args["content"]
+                    }
+                    #print(f"🔹 [DEBUG] suggestion_data 생성 완료: {suggestion_data}")  # 요청 데이터 확인
+
+                    # 🚀 send_suggestion 실행 전 로그 추가
+                    #print("🚀 [DEBUG] send_suggestion 실행 시도...")
+                    result = send_suggestion(suggestion_data)  # 여기서 멈추는지 확인
+                    #print(f"✅ [DEBUG] send_suggestion 실행 완료, 반환값: {result}")
+
+                    return result  # 성공적으로 실행되었는지 확인
+
+                except Exception as e:
+                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
+                    return {"status": "error", "message": str(e)}
 
             else:
                 return f"❌ 알 수 없는 함수 호출: {function_name}"
@@ -350,6 +380,10 @@ order_api_url = "http://15.164.233.144:8080/stores/1/orders" #가게1로 설정
 # 요청 사항 API URL
 request_api_url = "http://15.164.233.144:8080/notification/new-request"
 
+#건의 사항 API URL
+suggestion_api_url= "http://15.164.233.144:8080/stores/1/suggestions"
+
+
 # 함수: 주문 데이터를 서버로 전송
 def post_order(final_order_data,session_token):
     #rint("post_order 호출함")
@@ -367,9 +401,9 @@ def post_order(final_order_data,session_token):
         
         response = requests.post(order_api_url, json=final_order_data,headers=headers)
 
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             response_data = response.json()
-            print("✅ 주문 생성 성공!")
+            print("✅ 주문 성공!")
             #print(json.dumps(response_data, indent=4, ensure_ascii=False))
         else:
             print(f"❌ 주문 생성 실패: HTTP {response.status_code}")
@@ -381,7 +415,7 @@ def post_order(final_order_data,session_token):
 # 함수: 요청 데이터를 서버로 전송
 
 def send_request_notification(request_data, session_token):
-    print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
+    #print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
 
     headers = {
         #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
@@ -402,7 +436,7 @@ def send_request_notification(request_data, session_token):
         #print(f"🔍 [DEBUG] 응답 코드: {response.status_code}")
         #print(f"🔹 [DEBUG] 응답 본문: {response.text}")
 
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             response_data = response.json()
             print("✅ 요청 사항 알림 전송 성공!")
             return response_data
@@ -426,6 +460,49 @@ def send_request_notification(request_data, session_token):
     except requests.exceptions.RequestException as e:
         print(f"❌ 요청 중 예외 발생: {e}")
         return {"status": "error", "message": str(e)}
+    
+#함수: 건의 데이터를 서버로 전송
+
+def send_suggestion(suggestion_data):
+    #print("✅ send_request_notification 호출됨 - 건의를를 서버로 전송합니다.")
+
+    
+    #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
+    #print(f"🔹 [DEBUG] API 요청 URL: {request_api_url}")
+    #print(f"🔹 [DEBUG] 요청 헤더: {headers}")  
+
+    try:
+        #print("🚀 [DEBUG] 서버로 요청을 보냅니다...")
+        response = requests.post(suggestion_api_url, json=suggestion_data)
+        
+        #print("✅ [DEBUG] 요청이 실행됨!")  # 이 로그가 찍히는지 확인!!
+        #print(f"🔍 [DEBUG] 응답 코드: {response.status_code}")
+        #print(f"🔹 [DEBUG] 응답 본문: {response.text}")
+
+        if response.status_code in [200, 201]:
+            response_data = response.json()
+            print("✅ 건의 사항 알림 전송 성공!")
+            return response_data
+
+        elif response.status_code == 400:
+            print("❌ 요청 실패: 400 Bad Request (잘못된 요청)")
+            return {"status": 400, "error": "Bad Request", "message": response.text}
+
+        elif response.status_code == 404:
+            print("❌ 요청 실패: 404 Not Found (API가 존재하지 않음)")
+            return {"status": 404, "error": "Not Found", "message": response.text}
+
+        else:
+            print(f"❌ 건의 사항 알림 전송 실패: HTTP {response.status_code}")
+            return {"status": response.status_code, "message": response.text}
+
+    except requests.exceptions.Timeout:
+        print("⏳ 요청 시간이 초과되었습니다.")
+        return {"status": "error", "message": "Request timeout"}
+
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 요청 중 예외 발생: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 # 함수 호출을 지원하기 위한 함수 사양 정의
@@ -436,7 +513,7 @@ function_specifications = [
         "parameters": {
             "type": "object",
             "properties": {
-                "isTakeOut": { #테이크 타웃 관련 변수수
+                "isTakeOut": { #테이크 타웃 관련 변수
                     "type": "boolean",
                     "description": "True if the order is for takeout, False if it is for dine-in."
                 },
@@ -463,7 +540,7 @@ function_specifications = [
         }
     },
     {
-    "name": "create_request_notification", #함수: create_request_notification 요청 사항 호출출
+    "name": "create_request_notification", #함수: create_request_notification 요청 사항 호출
     "description": "Handles user requests such as temperature adjustments, music volume changes. If the assistant's response includes phrases like '요청 사항 내용', this function must be triggered.",
     "parameters": {
         "type": "object",
@@ -475,7 +552,22 @@ function_specifications = [
         },
         "required": ["content"]
         }   
+    },
+    {
+    "name": "create_suggestion", #함수 이름:create_suggestion 건의 사항 전송
+    "description": "Handles user suggestion. If the assistant's response includes phrases like '건의 사항 내용', this function must be triggered.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "content": {
+                "type": "string",
+                "description": "The suggestion content describing the user's need."
+            }
+        },
+        "required": ["content"]
     }
+}
+
 ]
 
 # 직접 실행 시 인터랙티브 모드 시작
