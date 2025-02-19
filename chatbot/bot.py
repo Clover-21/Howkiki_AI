@@ -1,19 +1,18 @@
 import os
-from dotenv import load_dotenv
 import openai
 import sys
 import requests, json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from chatbot.retriever import FAISSRetriever  # RAG 적용 (FAISS 검색)
-
-load_dotenv()  # .env 파일에서 환경 변수 로드
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+from api.config import config
 
 # API 키 설정 (공식 라이브러리 사용 방식)
-openai.api_key = OPENAI_API_KEY
+openai.api_key = config.OPENAI_API_KEY
+
+#API 설정
+order_api_url = config.order_api_url
+request_api_url = config.request_api_url
+suggestion_api_url = config.suggestion_api_url
 
 #전체 시스템 프롬프트 정의
 system_prompt='''
@@ -371,17 +370,6 @@ def gpt_functioncall(client, response,session_token):
         #print("❌ JSON 파싱 오류 발생:", e)
         #print("❌ 문제의 arguments 값:", arguments)
         return f"❌ 함수 호출 처리 중 오류 발생: {e}"
-
-
-import requests, json
-#주문 API URL
-order_api_url = "http://15.164.233.144:8080/stores/1/orders" #가게1로 설정
-
-# 요청 사항 API URL
-request_api_url = "http://15.164.233.144:8080/notification/new-request"
-
-#건의 사항 API URL
-suggestion_api_url= "http://15.164.233.144:8080/stores/1/suggestions"
 
 
 # 함수: 주문 데이터를 서버로 전송
