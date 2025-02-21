@@ -13,12 +13,25 @@ def chat():
         return jsonify({"error": "잘못된 요청 형식입니다. 'question' 키가 필요합니다."}), 400
 
     user_input = data["question"]  # "question" 값 가져오기
+    user_token = data.get("token")  # 프론트엔드에서 받은 토큰
 
     if not isinstance(user_input, str):  # 문자열인지 확인
         return jsonify({"error": "잘못된 입력 형식입니다. 질문은 문자열이어야 합니다."}), 400
 
-    # GPT 응답 생성 (system_prompt 제거)
-    response = get_rag_response(client, user_input)  
+    # GPT 응답 생성 (URL도 함께 반환)
+    response, generated_url = get_rag_response(client, user_input)  
 
-    # 응답 반환
-    return jsonify({"response": response})
+    # 응답 데이터 구성
+    response_data = {
+        "response": response
+    }
+
+    # URL이 있을 경우 응답에 포함
+    if generated_url:
+        response_data["url"] = generated_url
+
+    # 기존 토큰이 있다면 포함
+    if user_token:
+        response_data["token"] = user_token
+
+    return jsonify(response_data)
