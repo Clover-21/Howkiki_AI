@@ -1,0 +1,26 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /home/ubuntu/howkiki
+    overwrite: yes
+file_exists_behavior: OVERWRITE
+
+permissions:
+  - object: /home/ubuntu/howkiki/
+    owner: ubuntu
+    group: ubuntu
+
+hooks:
+  ApplicationStop:
+    - location: scripts/stop.sh
+      timeout: 30
+      runas: ubuntu
+  AfterInstall:
+    - location: scripts/deploy.sh
+      timeout: 300
+      runas: ubuntu
+  ApplicationStart:
+    - location: scripts/start.sh
+      timeout: 60
+      runas: ubuntu
