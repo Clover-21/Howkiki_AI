@@ -2,12 +2,12 @@ version: 0.0
 os: linux
 files:
   - source: /
-    destination: /home/ubuntu/howkiki
+    destination: /home/ubuntu/Howkiki_AI
     overwrite: yes
 file_exists_behavior: OVERWRITE
 
 permissions:
-  - object: /home/ubuntu/howkiki/
+  - object: /home/ubuntu/Howkiki_AI/
     owner: ubuntu
     group: ubuntu
 
