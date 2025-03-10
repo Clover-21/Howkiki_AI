@@ -1,8 +1,10 @@
 name: Deploy Flask to EC2 using CodeDeploy
 
+# Workflow를 트리거하는 이벤트 지정
+# 이 코드는 main 브랜치에 push 할 때 Workflow 실행
 on:
   push:
-    branches: [ "chatbot" ]
+    branches: [ "main" ]
     
 # Workflow 내에서 사용하는 환경 변수 정의  
 env:
