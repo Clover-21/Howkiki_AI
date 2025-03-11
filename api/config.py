@@ -8,6 +8,7 @@ class Config:
     order_api_url=os.getenv("order_api_url")
     request_api_url=os.getenv("request_api_url")
     suggestion_api_url=os.getenv("suggestion_api_url")
+    menu_image_api_url=os.getenv("menu_image_api_url")
 
 
 #환경 변수 검증
@@ -16,7 +17,8 @@ required_env_vars= {
     "OPENAI_API_KEY": config.OPENAI_API_KEY ,
     "order_api_url": config.order_api_url,
     "request_api_url": config.request_api_url,
-    "suggestion_api_url": config.suggestion_api_url
+    "suggestion_api_url": config.suggestion_api_url,
+    "menu_image_api_url": config.menu_image_api_url
 }
 for var_name, var_value in required_env_vars.items():
     if not var_value:
