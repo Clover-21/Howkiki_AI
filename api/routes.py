@@ -19,16 +19,16 @@ def chat():
         return jsonify({"error": "잘못된 입력 형식입니다. 질문은 문자열이어야 합니다."}), 400
 
     # GPT 응답 생성 (URL도 함께 반환)
-    response, generated_url = get_rag_response(client, user_input)  
-
+    response= get_rag_response(client, user_input)  
+    
     # 응답 데이터 구성
     response_data = {
         "response": response
     }
 
     # URL이 있을 경우 응답에 포함
-    if generated_url:
-        response_data["url"] = generated_url
+    #if generated_url:
+    #    response_data["url"] = generated_url
 
     # 기존 토큰이 있다면 포함
     if user_token:

@@ -523,11 +523,6 @@ def show_menu_image(menuName):
     """
     #print("✅ show_menu_image 호출됨 - 메뉴 사진을 가져옵니다.")
 
-    request_data = {
-        "storeId": 1,
-        "menuName": menuName
-    }
-
     # 올바른 URL 형식 적용
     store_id = 1  # 매장 ID (고정 값 또는 변수로 변경 가능)
     url = f"{menu_image_api_url}/stores/{store_id}/menu/img?menuName={menuName}"
