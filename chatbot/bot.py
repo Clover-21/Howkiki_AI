@@ -13,6 +13,7 @@ openai.api_key = config.OPENAI_API_KEY
 order_api_url = config.order_api_url
 request_api_url = config.request_api_url
 suggestion_api_url = config.suggestion_api_url
+menu_image_api_url = config.menu_image_api_url
 
 #전체 시스템 프롬프트 정의
 system_prompt='''
@@ -110,17 +111,23 @@ system_prompt='''
 
 
 7. **메뉴 사진 제공 처리**
-   고객이 "메뉴를 보여줘"라고 요청하면 메뉴 사진을 제공합니다.
+   고객이 "메뉴 사진을 보여줘"라고 요청하면 메뉴 사진을 제공합니다.
 
-   메뉴 사진은 **직접 표시**되도록 작성합니다.
+   사용자가 메뉴 사진을 보여달라고 요청하면 다음과 같이 응답하세요:
 
-   사용자가 "메뉴를 보여줘"라고 요청하면 다음과 같이 응답하세요:
-
-   사용자: "메뉴를 보여줘"
+   {사용자: "맑은 우육탕면 사진 보여줘"
    GPT:
-   "여기 음식점의 메뉴 사진입니다! 😊
+   "여기 맑은 우육탕면의 사진입니다! 😊},
+   { 사용자: 마늘칩 꿔바육 사진 좀 보고싶어.
+   gpt: "여기 마늘칩 꿔바육의 사진입니다! 😊
+   },
+   {사용자: 블랙 허가우 사진 있어?
+   gpt: 네 있습니다. 여기 블랙 허가우 사진입니다!
+   }
+   만약 메뉴 중 사진이 없으면, 사진이 없다고 정중히 말씀드리세요.
+   예:죄송합니다. 현재 콜라 사진이 제공되지 않아 빠른시내에 추가하도록 하겠습니다.
+   예: 해당 메뉴는 저희 매장에 없는 메뉴라 제공되지 않습니다.(메뉴에 있는지 확인 후)
 
-   [파이썬 코드로 메뉴 사진 보여주기]
 
    추가로 궁금한 메뉴나 추천 메뉴를 알고 싶으시면 말씀해 주세요! 🍽️"
 
@@ -240,11 +247,6 @@ def chat_with_gpt(client,session_token):
             gpt_functioncall(client, response,session_token)
         print("-------------------------------------------------------")
 
-### 📌 **메뉴 사진을 보여주는 함수**
-def show_menu_image():
-    """메뉴 사진 출력 (추후 구현)"""
-    print("여기 음식점의 메뉴 사진입니다! 😊")
-    # 실제 이미지 표시 기능 추가 예정
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
 def gpt_functioncall(client, response,session_token):
@@ -252,10 +254,11 @@ def gpt_functioncall(client, response,session_token):
      
     function_prompt = '''
     You are a helpful assistant for table 5. 
-    사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용도 감지하여 처리리하세요. 
+    사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용, 사진 요청도 감지하여 처리하세요. 
 
     ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('send_request_notification')를 호출하세요.***
-    **건의 사항이 입력되면 반드시 함수 ("send_suggestion")을 호출하세요.
+    **건의 사항이 입력되면 반드시 함수 ("send_suggestion")을 호출하세요.**
+    **사진 요청이 입력되면 반드시 함수 ("get_menu_image")을 호출하세요.""
     
     '''
     try:
@@ -361,6 +364,26 @@ def gpt_functioncall(client, response,session_token):
                     #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
                     return {"status": "error", "message": str(e)}
 
+            elif function_name == "get_menu_image":
+                #print("✅ get_menu_image 호출됨")
+
+                try:
+                    args = json.loads(arguments) if isinstance(arguments, str) else arguments
+                    """image_data={
+                    store_id = args["storeId"],
+                    menu_name = args["menuName"]}"""
+
+
+                    # 사진 요청 API 호출
+                    #result = show_menu_image(image_data)
+                    result = show_menu_image(args["menuName"])
+
+                    return result
+                except Exception as e:
+                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
+                    return {"status": "error", "message": str(e)}
+
+        
             else:
                 return f"❌ 알 수 없는 함수 호출: {function_name}"
         else:
@@ -374,7 +397,7 @@ def gpt_functioncall(client, response,session_token):
 
 # 함수: 주문 데이터를 서버로 전송
 def post_order(final_order_data,session_token):
-    #rint("post_order 호출함")
+    #print("post_order 호출함")
     """
     최종 주문 데이터를 POST 요청으로 서버에 전송합니다.
     요청 헤더에 sessionToken을 포함해야 함.
@@ -492,6 +515,44 @@ def send_suggestion(suggestion_data):
         print(f"❌ 요청 중 예외 발생: {e}")
         return {"status": "error", "message": str(e)}
 
+# 함수: 메뉴 사진을 보여줌줌
+def show_menu_image(menuName):
+    """
+    특정 가게(storeId)의 메뉴(menuName) 사진을 가져오는 함수.
+    API 요청을 보내서 해당 메뉴의 사진 URL을 가져옴.
+    """
+    #print("✅ show_menu_image 호출됨 - 메뉴 사진을 가져옵니다.")
+
+    # 올바른 URL 형식 적용
+    store_id = 1  # 매장 ID (고정 값 또는 변수로 변경 가능)
+    url = f"{menu_image_api_url}/stores/{store_id}/menu/img?menuName={menuName}"
+
+    try:
+        #print(f"🚀 [DEBUG] 요청 URL: {url}")
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            response_data = response.json()
+            print("✅ 메뉴 사진 가져오기 성공!")
+            return response_data  # 이미지 URL 포함
+        elif response.status_code == 400:
+            print("❌ 메뉴 사진 요청 실패: 400 Bad Request (잘못된 요청)")
+            return {"status": 400, "error": "Bad Request", "message": response.text}
+        elif response.status_code == 404:
+            print("❌ 메뉴 사진 요청 실패: 404 Not Found (해당 메뉴 없음)")
+            return {"status": 404, "error": "Not Found", "message": response.text}
+        else:
+            print(f"❌ 메뉴 사진 요청 실패: HTTP {response.status_code}")
+            return {"status": response.status_code, "message": response.text}
+
+    except requests.exceptions.Timeout:
+        print("⏳ 요청 시간이 초과되었습니다.")
+        return {"status": "error", "message": "Request timeout"}
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 요청 중 예외 발생: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 
 # 함수 호출을 지원하기 위한 함수 사양 정의
 function_specifications = [
@@ -553,6 +614,24 @@ function_specifications = [
             }
         },
         "required": ["content"]
+        }
+    },
+    {
+    "name": "get_menu_image",
+    "description": "Retrieves the menu image URL for a specific menu item in a store. If the assistant's response includes phrases like '사진 입니다', this function must be triggered.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "storeId": {
+                "type": "integer",
+                "description": "The unique identifier of the store."
+            },
+            "menuName": {
+                "type": "string",
+                "description": "The name of the menu item for which the image URL is requested."
+            }
+        },
+        "required": ["storeId", "menuName"]
     }
 }
 
