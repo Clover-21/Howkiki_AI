@@ -7,7 +7,7 @@ import os
 #OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "Authorization"])
 
 # 블루프린트 등록 (예: /api/chat으로 접근)
 app.register_blueprint(chatbot_bp, url_prefix='/api')
