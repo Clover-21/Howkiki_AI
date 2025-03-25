@@ -14,16 +14,6 @@ CORS(app, methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "Au
 def log_request():
     print(f"📌 {request.method} 요청 도착: {request.path}")
 
-# OPTIONS 요청 처리
-@app.route('/api/chat', methods=['OPTIONS'])
-def handle_options():
-    print("✅ OPTIONS 요청을 받음")
-    response = jsonify()
-    response.headers['Access-Control-Allow-Origin'] = 'https://kikibot.netlify.app'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, DELETE, PUT'
-    response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response, 204
 
 # 블루프린트 등록 (예: /api/chat으로 접근)
 app.register_blueprint(chatbot_bp, url_prefix='/api')
