@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from chatbot.bot import get_rag_response, client
+from chatbot.bot import chat_with_gpt, client
 
 # 블루프린트 생성
 chatbot_bp = Blueprint('chatbot', __name__)
@@ -17,18 +17,9 @@ def chat():
 
     if not isinstance(user_input, str):  # 문자열인지 확인
         return jsonify({"error": "잘못된 입력 형식입니다. 질문은 문자열이어야 합니다."}), 400
-
-    # GPT 응답 생성 (URL도 함께 반환)
-    response= get_rag_response(client, user_input)  
     
-    # 응답 데이터 구성
-    response_data = {
-        "response": response
-    }
-
-    # URL이 있을 경우 응답에 포함
-    #if generated_url:
-    #    response_data["url"] = generated_url
+    # GPT 응답 생성 (function calling 포함)
+    response_data = chat_with_gpt(client, user_input, user_token)
 
     # 기존 토큰이 있다면 포함
     if user_token:

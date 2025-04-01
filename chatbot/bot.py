@@ -215,38 +215,32 @@ def get_rag_response(client, question):
 
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
-def chat_with_gpt(client,session_token):
+def chat_with_gpt(client,question,session_token):
     """RAG 기반 챗봇 실행"""
     print("호우섬에 오신 것을 환영합니다! 😊")
     print("주문 또는 궁금한 점을 입력하세요. 대화를 종료하려면 '종료' 또는 '그만'을 입력하세요.\n")
+    # RAG 기반 응답 생성
+    response = get_rag_response(client, question)
 
-    while True:
-        question = input("작성해주세요: ")
+    # 최종 주문 내역 확인
+    final_order_check = "최종 주문 내역 있음"
+    has_final_order = any(final_order_check in msg["content"] for msg in conversation_history if msg["role"] == "system")
 
-        if question.lower() in ["종료", "그만"]:
-            print("프로그램을 종료합니다.")
-            break
+    function_call_result = None
 
-        # RAG 기반 응답 생성
-        response = get_rag_response(client, question)
+    if "해당 요청을 사장님께 전달해 드릴까요?" in response:
         
-         # 최종 주문 내역 확인
-        final_order_check = "최종 주문 내역 있음"
-        has_final_order = any(final_order_check in msg["content"] for msg in conversation_history if msg["role"] == "system")
-        
-        if "해당 요청을 사장님께 전달해 드릴까요?" in response:
-            if has_final_order:
-                print(response)
-                gpt_functioncall(client, response,session_token)
-                
-            else:
-                print("최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊")
-                
-        else: 
-            print(response)
-            
-            gpt_functioncall(client, response,session_token)
-        print("-------------------------------------------------------")
+        if has_final_order:
+            function_call_result = gpt_functioncall(client, response, session_token)
+        else:
+            response = "\n최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
+
+    function_call_result = gpt_functioncall(client, response, session_token)
+    # JSON 형태로 프론트엔드에 반환
+    return {
+        "response": response,
+        "function_call_result": function_call_result
+    }
 
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
@@ -415,13 +409,13 @@ def post_order(final_order_data,session_token):
 
         if response.status_code in [200, 201]:
             response_data = response.json()
-            print("✅ 주문 성공!")
+            return "✅ 주문 성공!"
             #print(json.dumps(response_data, indent=4, ensure_ascii=False))
         else:
-            print(f"❌ 주문 생성 실패: HTTP {response.status_code}")
+            return f"❌ 주문 생성 실패: HTTP {response.status_code}"
             print(response.json())
     except requests.exceptions.RequestException as e:
-        print(f"❌ 요청 실패: {e}")
+        return f"❌ 요청 실패: {e}"
 
 
 # 함수: 요청 데이터를 서버로 전송
