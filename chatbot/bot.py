@@ -209,7 +209,7 @@ def get_rag_response(client, question):
 
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
-def chat_with_gpt(client,question,session_token, store_id, table_num):
+def chat_with_gpt(client,question,user_token, store_id, table_num):
     """RAG 기반 챗봇 실행"""
     #print(f"📌 [DEBUG] chat_with_gpt() 내부 store_id: {store_id}, table_num: {table_num}")  # 디버깅 추가
     #print("호우섬에 오신 것을 환영합니다! 😊")
@@ -224,13 +224,12 @@ def chat_with_gpt(client,question,session_token, store_id, table_num):
     function_call_result = None
 
     if "해당 요청을 사장님께 전달해 드릴까요?" in response:
-        
         if has_final_order:
-            function_call_result = gpt_functioncall(client, response, session_token,store_id, table_num)
+            function_call_result = gpt_functioncall(client, response, user_token,store_id, table_num)
         else:
-            response = "\n최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
+            response = "최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
 
-    function_call_result = gpt_functioncall(client, response, session_token, store_id, table_num)
+    function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
     # JSON 형태로 프론트엔드에 반환
     return {
         "response": response,
@@ -239,7 +238,7 @@ def chat_with_gpt(client,question,session_token, store_id, table_num):
 
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
-def gpt_functioncall(client, response,session_token, store_id, table_num):
+def gpt_functioncall(client, response,user_token, store_id, table_num):
     """GPT 응답 기반으로 특정 행동 처리 """
      
     function_prompt = '''
@@ -287,7 +286,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
                 }
                 #주문 API 호출(세션 토근 포함함)
                 print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
-                result = post_order(final_order_data,session_token, store_id)
+                result = post_order(final_order_data,user_token, store_id)
                 return result
             
             #요청 사항 생성 함수
@@ -317,7 +316,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
 
                     # 🚀 send_request_notification 실행 전 로그 추가
                     #print("🚀 [DEBUG] send_request_notification 실행 시도...")
-                    result = send_request_notification(request_data, session_token)  # 여기서 멈추는지 확인
+                    result = send_request_notification(request_data, user_token)  # 여기서 멈추는지 확인
                     #print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
 
                     return result  # 성공적으로 실행되었는지 확인
@@ -393,7 +392,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
 
 
 # 함수: 주문 데이터를 서버로 전송
-def post_order(final_order_data,session_token, store_id):
+def post_order(final_order_data,user_token, store_id):
     #print("post_order 호출함")
     #print(f"🛠 store_id: {store_id}")
     """
@@ -404,7 +403,7 @@ def post_order(final_order_data,session_token, store_id):
     order_api_url= f"{api_url}/stores/{store_id}/orders"
     #print(f"🌐 [DEBUG] API 요청 URL: {order_api_url}")
     headers = {
-        "sessionToken": session_token,
+        "sessionToken": user_token,
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
@@ -427,12 +426,12 @@ def post_order(final_order_data,session_token, store_id):
 
 # 함수: 요청 데이터를 서버로 전송
 
-def send_request_notification(request_data, session_token):
+def send_request_notification(request_data, user_token):
     #print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
     request_api_url = f"{api_url}/notification/new-request"
     headers = {
         #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
-        "sessionToken": session_token,
+        "sessionToken": user_token,
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
