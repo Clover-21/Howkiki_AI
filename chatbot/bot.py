@@ -9,11 +9,9 @@ from api.config import config
 # API 키 설정 (공식 라이브러리 사용 방식)
 openai.api_key = config.OPENAI_API_KEY
 
-#API 설정
-order_api_url = config.order_api_url
-request_api_url = config.request_api_url
-suggestion_api_url = config.suggestion_api_url
-menu_image_api_url = config.menu_image_api_url
+#backend API 설정
+api_url = config.api_url
+
 
 #전체 시스템 프롬프트 정의
 system_prompt='''
@@ -113,8 +111,7 @@ system_prompt='''
 
 7. **메뉴 사진 제공 처리**
    고객이 "메뉴 사진을 보여줘"라고 요청하면 메뉴 사진을 제공합니다.
-
-   사용자가 메뉴 사진을 보여달라고 요청하면 다음과 같이 응답하세요:
+   사용자가 메뉴 사진을 보여달라고 요청하면 메뉴 사진 정보에 있는지 확인 후 다음과 같이 응답하세요:
 
    {사용자: "맑은 우육탕면 사진 보여줘"
    GPT:
@@ -128,9 +125,6 @@ system_prompt='''
    아직 메뉴 사진 정보가 없는 메뉴는 사진이 없다고 정중히 말씀드리세요.
    예: 죄송합니다. 현재 콜라 사진이 제공되지 않아 빠른시내에 추가하도록 하겠습니다.
    예: 해당 메뉴는 저희 매장에 없는 메뉴라 제공되지 않습니다.(메뉴 사진 정보에 있는지 확인 후)
-
-
-   추가로 궁금한 메뉴나 추천 메뉴를 알고 싶으시면 말씀해 주세요! 🍽️"
 
 8. **건의 사항 처리**:
    - 사용자가 서비스 개선점(예: 음악 소리가 크다, 테이블이 좁다 등)을 말하면 "건의 사항으로 남길까요?"라고 묻습니다.
@@ -215,7 +209,7 @@ def get_rag_response(client, question):
 
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
-def chat_with_gpt(client,question,session_token):
+def chat_with_gpt(client,question,session_token, table_num, store_id):
     """RAG 기반 챗봇 실행"""
     #print("호우섬에 오신 것을 환영합니다! 😊")
     #print("주문 또는 궁금한 점을 입력하세요. 대화를 종료하려면 '종료' 또는 '그만'을 입력하세요.\n")
@@ -231,11 +225,11 @@ def chat_with_gpt(client,question,session_token):
     if "해당 요청을 사장님께 전달해 드릴까요?" in response:
         
         if has_final_order:
-            function_call_result = gpt_functioncall(client, response, session_token)
+            function_call_result = gpt_functioncall(client, response, session_token, table_num, store_id)
         else:
             response = "\n최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
 
-    function_call_result = gpt_functioncall(client, response, session_token)
+    function_call_result = gpt_functioncall(client, response, session_token, table_num, store_id)
     # JSON 형태로 프론트엔드에 반환
     return {
         "response": response,
@@ -244,7 +238,7 @@ def chat_with_gpt(client,question,session_token):
 
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
-def gpt_functioncall(client, response,session_token):
+def gpt_functioncall(client, response,session_token, table_num, store_id):
     """GPT 응답 기반으로 특정 행동 처리 """
      
     function_prompt = '''
@@ -282,7 +276,8 @@ def gpt_functioncall(client, response,session_token):
                 #print("json 파싱 성공")
                 final_order_data = {
                     "isTakeOut": args["isTakeOut"],  # 사용자 입력 반영
-                    "tableNumber": 5, #테이블 5로 설정
+                    "tableNumber": table_num, #from frontend
+                    "storeId": store_id,
                     "finalOrderDetails": [
                         {"menuName": item["menuName"], "quantity": item["quantity"]}
                         for item in args["finalOrderDetails"]
@@ -290,7 +285,7 @@ def gpt_functioncall(client, response,session_token):
                 }
                 #주문 API 호출(세션 토근 포함함)
                 #print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
-                result = post_order(final_order_data,session_token)
+                result = post_order(final_order_data,session_token, store_id)
                 return result
             
             #요청 사항 생성 함수
@@ -312,7 +307,8 @@ def gpt_functioncall(client, response,session_token):
 
                     # 요청 데이터 생성
                     request_data = {
-                        "tableNumber": 5,
+                        "tableNumber":table_num,
+                        "storeId": store_id,
                         "content": args["content"]
                     }
                     #print(f"🔹 [DEBUG] request_data 생성 완료: {request_data}")  # 요청 데이터 확인
@@ -344,13 +340,14 @@ def gpt_functioncall(client, response,session_token):
 
                     # 요청 데이터 생성
                     suggestion_data = {
+                        "storeId": store_id,
                         "content": args["content"]
                     }
                     #print(f"🔹 [DEBUG] suggestion_data 생성 완료: {suggestion_data}")  # 요청 데이터 확인
 
                     # 🚀 send_suggestion 실행 전 로그 추가
                     #print("🚀 [DEBUG] send_suggestion 실행 시도...")
-                    result = send_suggestion(suggestion_data)  # 여기서 멈추는지 확인
+                    result = send_suggestion(suggestion_data, store_id)  # 여기서 멈추는지 확인
                     #print(f"✅ [DEBUG] send_suggestion 실행 완료, 반환값: {result}")
 
                     return result  # 성공적으로 실행되었는지 확인
@@ -364,14 +361,15 @@ def gpt_functioncall(client, response,session_token):
 
                 try:
                     args = json.loads(arguments) if isinstance(arguments, str) else arguments
-                    """image_data={
-                    store_id = args["storeId"],
-                    menu_name = args["menuName"]}"""
+                    image_data = {
+                    "storeId": store_id,
+                    "menuName": args["menuName"]
+                    }
 
 
                     # 사진 요청 API 호출
-                    #result = show_menu_image(image_data)
-                    result = show_menu_image(args["menuName"])
+                    result = show_menu_image(image_data, store_id)
+                    #result = show_menu_image(args["menuName"])
 
                     return result
                 except Exception as e:
@@ -391,12 +389,14 @@ def gpt_functioncall(client, response,session_token):
 
 
 # 함수: 주문 데이터를 서버로 전송
-def post_order(final_order_data,session_token):
+def post_order(final_order_data,session_token, store_id):
     #print("post_order 호출함")
     """
     최종 주문 데이터를 POST 요청으로 서버에 전송합니다.
     요청 헤더에 sessionToken을 포함해야 함.
     """
+    
+    order_api_url= f"{api_url}/stores/{store_id}/orders"
     headers = {
         "sessionToken": session_token,
         "Accept": "application/json",
@@ -423,7 +423,7 @@ def post_order(final_order_data,session_token):
 
 def send_request_notification(request_data, session_token):
     #print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
-
+    request_api_url = f"{api_url}/notification/new-request"
     headers = {
         #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
         "sessionToken": session_token,
@@ -470,10 +470,10 @@ def send_request_notification(request_data, session_token):
     
 #함수: 건의 데이터를 서버로 전송
 
-def send_suggestion(suggestion_data):
+def send_suggestion(suggestion_data, store_id):
     #print("✅ send_request_notification 호출됨 - 건의를를 서버로 전송합니다.")
 
-    
+    suggestion_api_url = f"{api_url}/stores/{store_id}/suggestions"
     #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
     #print(f"🔹 [DEBUG] API 요청 URL: {request_api_url}")
     #print(f"🔹 [DEBUG] 요청 헤더: {headers}")  
@@ -512,7 +512,7 @@ def send_suggestion(suggestion_data):
         return {"status": "error", "message": str(e)}
 
 # 함수: 메뉴 사진을 보여줌줌
-def show_menu_image(menuName):
+def show_menu_image(menuName,store_id):
     """
     특정 가게(storeId)의 메뉴(menuName) 사진을 가져오는 함수.
     API 요청을 보내서 해당 메뉴의 사진 URL을 가져옴.
@@ -520,12 +520,11 @@ def show_menu_image(menuName):
     #print("✅ show_menu_image 호출됨 - 메뉴 사진을 가져옵니다.")
 
     # 올바른 URL 형식 적용
-    store_id = 1  # 매장 ID (고정 값 또는 변수로 변경 가능)
-    url = f"{menu_image_api_url}/stores/{store_id}/menu/img?menuName={menuName}"
+    menu_image_api_url = f"{api_url}/stores/{store_id}/menu/img?menuName={menuName}"
 
     try:
         #print(f"🚀 [DEBUG] 요청 URL: {url}")
-        response = requests.get(url)
+        response = requests.get(menu_image_api_url)
 
         if response.status_code == 200:
             response_data = response.json()
@@ -562,6 +561,14 @@ function_specifications = [
                     "type": "boolean",
                     "description": "True if the order is for takeout, False if it is for dine-in."
                 },
+                "tableNumber": {
+                    "type": "integer",
+                    "description": "The table number where the order is placed."
+                },
+                "storeId": {
+                    "type": "string",
+                    "description": "The unique identifier of the store."
+                },
                 "finalOrderDetails": {  # 'finalOrderDetails' 최종 주문임
                     "type": "array",
                     "items": {
@@ -581,7 +588,7 @@ function_specifications = [
                     "description": "List of menu items in the final confirmed order."
                 }
             },
-            "required": ["finalOrderDetails"]
+            "required": ["tableNumber", "storeId", "finalOrderDetails"]
         }
     },
     {
@@ -590,12 +597,20 @@ function_specifications = [
     "parameters": {
         "type": "object",
         "properties": {
+            "tableNumber": {
+                    "type": "integer",
+                    "description": "The table number where the request was made."
+                },
+                "storeId": {
+                    "type": "string",
+                    "description": "The unique identifier of the store."
+                },
             "content": {
                 "type": "string",
                 "description": "The request content describing the user's need."
             }
         },
-        "required": ["content"]
+        "required": ["tableNumber", "storeId", "content"]
         }   
     },
     {
@@ -604,12 +619,16 @@ function_specifications = [
     "parameters": {
         "type": "object",
         "properties": {
+            "storeId": {
+                    "type": "string",
+                    "description": "The unique identifier of the store."
+                },
             "content": {
                 "type": "string",
                 "description": "The suggestion content describing the user's need."
             }
         },
-        "required": ["content"]
+        "required": ["storeId", "content"]
         }
     },
     {
