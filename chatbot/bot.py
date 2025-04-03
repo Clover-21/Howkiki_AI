@@ -363,15 +363,17 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
 
                 try:
                     args = json.loads(arguments) if isinstance(arguments, str) else arguments
+                    
+                    """
                     image_data = {
                     "storeId": store_id,
                     "menuName": args["menuName"]
-                    }
+                    }"""
 
 
                     # 사진 요청 API 호출
-                    result = show_menu_image(image_data, store_id)
-                    #result = show_menu_image(args["menuName"])
+                    #result = show_menu_image(image_data, store_id)
+                    result = show_menu_image(args["menuName"],store_id)
 
                     return result
                 except Exception as e:
