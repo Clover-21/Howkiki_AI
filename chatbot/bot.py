@@ -160,25 +160,35 @@ client = openai
 # FAISS 검색 인스턴스 생성 (RAG 적용)
 retriever = FAISSRetriever()
 
-# 전역 대화 이력 (주의: 동시 요청/다중 사용자 환경에서는 별도 관리 필요)
-conversation_history = [{"role": "system", "content": system_prompt}]
-
+# 유저별 대화 이력을 저장할 딕셔너리
+user_conversations = {}
 
 ### 📌 **RAG 기반 GPT 응답 생성 함수**
-def get_rag_response(client, question):
+def get_rag_response(client, question,user_token):
     """RAG 기반 GPT 응답 생성"""
+
+    # 사용자의 대화 이력이 없으면 새로 생성
+    if user_token not in user_conversations:
+        user_conversations[user_token] = [
+            {"role": "system", "content": system_prompt}
+        ]
+
+    conversation_history = user_conversations[user_token]  # 해당 사용자의 대화 이력 가져오기
+    
     retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
 
     # 최종 주문 내역이 있는지 확인
     final_order_phrase = "최종 주문 내역은 다음과 같습니다"
     is_final_order = any(final_order_phrase in msg["content"] for msg in conversation_history if msg["role"] == "assistant")
-    
+
     # 최종 주문이 감지되면 대화 기록 초기화
     if is_final_order:
-        conversation_history.clear()
-        conversation_history.append({"role": "system", "content": system_prompt})
-        conversation_history.append({"role": "system", "content": "최종 주문 내역 있음"})
-
+        user_conversations[user_token] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": "최종 주문 내역 있음"}
+        ]
+        conversation_history = user_conversations[user_token]
+        
     # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
     if retrieved_info:
         system_prompt_with_context = f"""
@@ -189,7 +199,7 @@ def get_rag_response(client, question):
         -------------------
 
         고객의 질문에 대해 관련 정보만 제공하고, --검색된 정보-- 및 대화기록을 바탕으로 답하세요.
-        제공되지 않은 정보에 대해서는 '제공되지 않은 정보입니다. '라고 말한 후 대화를 이어나가세요.
+        제공되지 않은 정보에 대해서는 '제공되지 않은 정보입니다. 다른 궁금사항이 있다면 언제든 알려주세요요'라고 말한 후 대화를 이어나가세요.
         """
     else:
         system_prompt_with_context = system_prompt
@@ -209,28 +219,26 @@ def get_rag_response(client, question):
 
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
-def chat_with_gpt(client,question,session_token, store_id, table_num):
+def chat_with_gpt(client,question,user_token, store_id, table_num):
     """RAG 기반 챗봇 실행"""
     #print(f"📌 [DEBUG] chat_with_gpt() 내부 store_id: {store_id}, table_num: {table_num}")  # 디버깅 추가
-    #print("호우섬에 오신 것을 환영합니다! 😊")
-    #print("주문 또는 궁금한 점을 입력하세요. 대화를 종료하려면 '종료' 또는 '그만'을 입력하세요.\n")
     # RAG 기반 응답 생성
-    response = get_rag_response(client, question)
+    response = get_rag_response(client, question, user_token)
 
     # 최종 주문 내역 확인
     final_order_check = "최종 주문 내역 있음"
+    conversation_history = user_conversations.get(user_token, [])  # 사용자 대화 이력 가져오기
     has_final_order = any(final_order_check in msg["content"] for msg in conversation_history if msg["role"] == "system")
 
     function_call_result = None
 
     if "해당 요청을 사장님께 전달해 드릴까요?" in response:
-        
         if has_final_order:
-            function_call_result = gpt_functioncall(client, response, session_token,store_id, table_num)
+            function_call_result = gpt_functioncall(client, response, user_token,store_id, table_num)
         else:
-            response = "\n최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
+            response = "최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
 
-    function_call_result = gpt_functioncall(client, response, session_token, store_id, table_num)
+    function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
     # JSON 형태로 프론트엔드에 반환
     return {
         "response": response,
@@ -239,15 +247,14 @@ def chat_with_gpt(client,question,session_token, store_id, table_num):
 
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
-def gpt_functioncall(client, response,session_token, store_id, table_num):
+def gpt_functioncall(client, response,user_token, store_id, table_num):
     """GPT 응답 기반으로 특정 행동 처리 """
      
     function_prompt = '''
-    You are a helpful assistant for table 5. 
     사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용, 사진 요청도 감지하여 처리하세요. 
 
-    ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('send_request_notification')를 호출하세요.***
-    **건의 사항이 입력되면 반드시 함수 ("send_suggestion")을 호출하세요.**
+    ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('create_request_notification')를 호출하세요.***
+    **건의 사항이 입력되면 반드시 함수 ("create_suggestion")을 호출하세요.**
     **사진 요청이 입력되면 반드시 함수 ("get_menu_image")을 호출하세요.""
     
     '''
@@ -287,7 +294,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
                 }
                 #주문 API 호출(세션 토근 포함함)
                 print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
-                result = post_order(final_order_data,session_token, store_id)
+                result = post_order(final_order_data,user_token, store_id)
                 return result
             
             #요청 사항 생성 함수
@@ -317,7 +324,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
 
                     # 🚀 send_request_notification 실행 전 로그 추가
                     #print("🚀 [DEBUG] send_request_notification 실행 시도...")
-                    result = send_request_notification(request_data, session_token)  # 여기서 멈추는지 확인
+                    result = send_request_notification(request_data, user_token)  # 여기서 멈추는지 확인
                     #print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
 
                     return result  # 성공적으로 실행되었는지 확인
@@ -393,7 +400,7 @@ def gpt_functioncall(client, response,session_token, store_id, table_num):
 
 
 # 함수: 주문 데이터를 서버로 전송
-def post_order(final_order_data,session_token, store_id):
+def post_order(final_order_data,user_token, store_id):
     #print("post_order 호출함")
     #print(f"🛠 store_id: {store_id}")
     """
@@ -404,7 +411,7 @@ def post_order(final_order_data,session_token, store_id):
     order_api_url= f"{api_url}/stores/{store_id}/orders"
     #print(f"🌐 [DEBUG] API 요청 URL: {order_api_url}")
     headers = {
-        "sessionToken": session_token,
+        "sessionToken": user_token,
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
@@ -427,12 +434,12 @@ def post_order(final_order_data,session_token, store_id):
 
 # 함수: 요청 데이터를 서버로 전송
 
-def send_request_notification(request_data, session_token):
+def send_request_notification(request_data, user_token):
     #print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
     request_api_url = f"{api_url}/notification/new-request"
     headers = {
         #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
-        "sessionToken": session_token,
+        "sessionToken": user_token,
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
