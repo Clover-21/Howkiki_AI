@@ -16,7 +16,6 @@ api_url = config.api_url
 #전체 시스템 프롬프트 정의
 system_prompt='''
 당신은 음식점의 고객 서비스 챗봇 역할을 수행하는 AI 어시스턴트입니다. 다음의 역할과 정보를 기반으로 고객 요청에 응답하세요.:
-현재 너는 테이블 5번의 주문을 받는 상황이야. - "tableNumber": 5
 
 1. **주문 지원**:
    - 손님이 주문하고자 하는 메뉴와 수량을 파악하여 최종 주문 내역을 출력합니다.
@@ -189,7 +188,8 @@ def get_rag_response(client, question):
         {retrieved_info}
         -------------------
 
-        고객의 질문에 대해 관련 정보만 제공하고, 확인되지 않은 내용은 '확인되지 않은 정보입니다.'라고 답하세요.
+        고객의 질문에 대해 관련 정보만 제공하고, --검색된 정보-- 및 대화기록을 바탕으로 답하세요.
+        제공되지 않은 정보에 대해서는 '제공되지 않은 정보입니다. '라고 말한 후 대화를 이어나가세요.
         """
     else:
         system_prompt_with_context = system_prompt
@@ -659,5 +659,7 @@ function_specifications = [
 # 직접 실행 시 인터랙티브 모드 시작
 if __name__ == '__main__':
     session_token="1235" #임의로 세션토큰 지정
-    chat_with_gpt(client,session_token)
+    store_id =" 1"
+    table_num="2"
+    chat_with_gpt(client,session_token, store_id, table_num)
 
