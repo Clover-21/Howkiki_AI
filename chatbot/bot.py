@@ -4,6 +4,7 @@ import sys
 import requests, json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from chatbot.retriever import FAISSRetriever  # RAG 적용 (FAISS 검색)
+from api.redis_client import get_conversation, save_conversation
 from api.config import config
 
 # API 키 설정 (공식 라이브러리 사용 방식)
@@ -160,35 +161,29 @@ client = openai
 # FAISS 검색 인스턴스 생성 (RAG 적용)
 retriever = FAISSRetriever()
 
-# 유저별 대화 이력을 저장할 딕셔너리
-user_conversations = {}
-
 ### 📌 **RAG 기반 GPT 응답 생성 함수**
 def get_rag_response(client, question,user_token):
     """RAG 기반 GPT 응답 생성"""
 
-    # 사용자의 대화 이력이 없으면 새로 생성
-    if user_token not in user_conversations:
-        user_conversations[user_token] = [
+    conversation_history = get_conversation(user_token)
+
+    # 대화 이력이 없으면 초기화
+    if not conversation_history:
+        conversation_history = [
             {"role": "system", "content": system_prompt}
         ]
-
-    conversation_history = user_conversations[user_token]  # 해당 사용자의 대화 이력 가져오기
-    
-    retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
 
     # 최종 주문 내역이 있는지 확인
     final_order_phrase = "최종 주문 내역은 다음과 같습니다"
     is_final_order = any(final_order_phrase in msg["content"] for msg in conversation_history if msg["role"] == "assistant")
 
-    # 최종 주문이 감지되면 대화 기록 초기화
     if is_final_order:
-        user_conversations[user_token] = [
-            {"role": "system", "content": system_prompt},
-            {"role": "system", "content": "최종 주문 내역 있음"}
-        ]
-        conversation_history = user_conversations[user_token]
-        
+        conversation_history = [
+        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": "최종 주문 내역 있음"}
+    ]
+    retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
+
     # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
     if retrieved_info:
         system_prompt_with_context = f"""
@@ -215,6 +210,9 @@ def get_rag_response(client, question,user_token):
     assistant_reply = completion.choices[0].message.content
     conversation_history.append({"role": "assistant", "content": assistant_reply})
 
+    # Redis에 저장
+    save_conversation(user_token, conversation_history)
+
     return assistant_reply
 
 
@@ -225,20 +223,23 @@ def chat_with_gpt(client,question,user_token, store_id, table_num):
     # RAG 기반 응답 생성
     response = get_rag_response(client, question, user_token)
 
-    # 최종 주문 내역 확인
+    # Redis에서 대화 이력 불러오기(최종 주문 내역 확인)
+    conversation_history = get_conversation(user_token)
     final_order_check = "최종 주문 내역 있음"
-    conversation_history = user_conversations.get(user_token, [])  # 사용자 대화 이력 가져오기
     has_final_order = any(final_order_check in msg["content"] for msg in conversation_history if msg["role"] == "system")
 
     function_call_result = None
 
     if "해당 요청을 사장님께 전달해 드릴까요?" in response:
         if has_final_order:
-            function_call_result = gpt_functioncall(client, response, user_token,store_id, table_num)
+            function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
         else:
             response = "최종 주문 내역이 없으므로, 주문을 먼저 해주세요. 😊"
 
-    function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
+    else:
+        # 기본적으로 함수 호출 시도 (선택적 로직)
+        function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
+
     # JSON 형태로 프론트엔드에 반환
     return {
         "response": response,
@@ -248,14 +249,14 @@ def chat_with_gpt(client,question,user_token, store_id, table_num):
 
 ### 📌 **GPT 기반 행동 요청 처리 함수**
 def gpt_functioncall(client, response,user_token, store_id, table_num):
-    """GPT 응답 기반으로 특정 행동 처리 """
+    """GPT 응답을 분석하여 적절한 행동(주문, 요청, 건의 등)을 실행합니다."""
      
     function_prompt = '''
     사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용, 사진 요청도 감지하여 처리하세요. 
-
+    
     ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('create_request_notification')를 호출하세요.***
     **건의 사항이 입력되면 반드시 함수 ("create_suggestion")을 호출하세요.**
-    **사진 요청이 입력되면 반드시 함수 ("get_menu_image")을 호출하세요.""
+    **사진 요청이 입력되면 반드시 함수 ("get_menu_image")을 호출하세요.**
     
     '''
     try:
