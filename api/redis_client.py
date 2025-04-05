@@ -4,15 +4,21 @@ from api.config import Config
 
 
 
-# Redis 클라이언트 생성
-redis_client = redis.Redis(
-    host=Config.REDIS_HOST,
-    port=Config.REDIS_PORT,
-    db=Config.REDIS_DB,
-    password=Config.REDIS_PASSWORD,
-    decode_responses=True
-)
-
+# Redis 클라이언트 생성 (예외 처리 포함)
+try:
+    redis_client = redis.Redis(
+        host=Config.REDIS_HOST,
+        port=Config.REDIS_PORT,
+        db=Config.REDIS_DB,
+        password=Config.REDIS_PASSWORD,
+        decode_responses=True
+    )
+    redis_client.ping()
+    print("✅ Redis 연결 성공")
+except redis.RedisError as e:
+    print(f"❌ [Redis 연결 실패]: {e}")
+    redis_client = None  # fallback 처리
+    
 def get_conversation(user_token):
     """ 사용자 토큰을 기반으로 대화 기록 조회 """
     key = f"conversation:{user_token}"
