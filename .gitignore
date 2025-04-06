@@ -17,8 +17,8 @@ __pycache__/
 
 
 # FAISS 벡터 DB 파일 (RAG 검색용)
-data/faiss_index
-data/faiss_store.pkl
+!data/faiss_index
+!data/faiss_store.pkl
 
 
 # 로그 파일
