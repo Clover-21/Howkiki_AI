@@ -27,9 +27,9 @@ try:
         decode_responses=True
     )
     redis_client.ping()
-    logger.info("✅ Redis 연결 성공")
+    logger.info(" Redis 연결 성공")
 except redis.RedisError as e:
-    logger.error(f"❌ [Redis 연결 실패]: {e}")
+    logger.error(f"[Redis 연결 실패]: {e}")
     redis_client = None
 
 def get_conversation(user_token):
