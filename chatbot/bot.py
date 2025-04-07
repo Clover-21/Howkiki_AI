@@ -213,7 +213,7 @@ def get_rag_response(client, question,user_token):
 
     # GPT-4o 응답 생성
     completion = client.chat.completions.create(
-        model="gpt-4o-mini", messages=conversation_history
+        model="gpt-4o", messages=conversation_history
     )
     assistant_reply = completion.choices[0].message.content
     conversation_history.append({"role": "assistant", "content": assistant_reply})
