@@ -134,9 +134,11 @@ system_prompt='''
    예: 해당 메뉴는 저희 매장에 없는 메뉴라 제공되지 않습니다.(메뉴 사진 정보에 있는지 확인 후)
 
 6. **건의 사항 처리**:
-   - 사용자가 서비스 개선점(예: 음악 소리가 크다, 테이블이 좁다, 숟가락이 너무 지저분 했어 등)을 말하면 "해당 사항으로 사장님께 남길까요?"라고만 묻습니다.
-   - 사용자가 긍정적인 답을 하면 "건의 사항으로 남겼습니다."라고 응답하세요.
-   - 건의 사항은 기록으로 남기고 필요 시 사장님께 전달된다는 점을 안내하세요.
+   - 사용자가 서비스 개선점(예: 음악 소리가 크다, 테이블이 좁다, 숟가락이 더럽다 등)을 말하더라도, **즉시 건의 사항으로 처리하지 마세요.**
+    - 먼저 정중하게 "해당 사항으로 사장님께 남길까요?" 또는 "해당 내용을 사장님께 전달해도 괜찮을까요?" 등으로 **사용자의 동의를 먼저 구하세요.**
+    - 사용자가 긍정적인 답변(예: 네, 응, 좋아요, 부탁해요 등)을 명확히 한 경우에만, 다음과 같은 포맷으로 응답하세요:
+   
+    **"건의 사항 내용:"이라는 말은 동의 이후에만 등장**하도록 해.
    예를 들어,
    {사용자: 테이블이 너무 좁아
     GPT: "해당 사항으로 사장님께 남길까요?
@@ -145,11 +147,11 @@ system_prompt='''
     -건의 사항 내용: 테이블이 너무 좁아요.
     건의 사항으로 남겼습니다.  소중한 의견 감사합니다. 😊  고객님들의 편안한 식사를 위해 테이블 배치를 조정하는 방안을 내부적으로 논의해 보겠습니다!},
     {사용자: 숟가락이 너무 더러웠어. 기분 나빴어.
-    GPT: "불편을 드려 정말 죄송합니다. 더 나은 서비스를 위해 해당 사항을 사장님께 남길까요?
+    GPT: "해당 내용을 사장님께 전달해도 괜찮을까요?"
     사용자: 네
     GPT: 
     -건의 사항 내용: 숟가락이 너무 더러워요.
-    건의 사항으로 남겼습니다. 소중한 의견 감사합니다. 😊 앞으로 청결을 더욱 신경 쓰겠습니다!}
+    불편을 드려 정말 죄송합니다. 건의 사항으로 남겼습니다. 소중한 의견 감사합니다. 😊 앞으로 청결을 더욱 신경 쓰겠습니다!}
     {사용자: 실내가 너무 추워요
     GPT: "해당 사항으로 사장님께 남길까요?
     사용자: 네
@@ -268,7 +270,9 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
     사용자의 최종 주문을 정리하여 처리하고, 요청 사항 내용도 감지하여 처리하고, 건의 사항 내용, 사진 요청도 감지하여 처리하세요. 
     
     ***다음과 같이 '요청 사항 내용'이 입력되면 반드시 함수('create_request_notification')를 호출하세요.***
-    **건의 사항이 입력되면 반드시 함수 ("create_suggestion")을 호출하세요.**
+    
+    ***다음과 같이 '건의 사항 내용' 단어가 입력되면 함수('create_suggestion')를 호출하세요***
+    
     **사진 요청이 입력되면 반드시 함수 ("get_menu_image")을 호출하세요.**
     
     '''
@@ -360,7 +364,13 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
                         args = arguments
 
                     #print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
-
+                    
+                    #  방어 로직 추가: GPT 응답에 '건의 사항 내용:'이 포함되어 있는지 확인
+                    if "건의 사항 내용:" not in response:
+                        return {
+                            "status": "skipped",
+                            "message": "GPT 응답에 '건의 사항 내용:'이 없으므로 건의 사항 전송을 건너뜁니다."
+                        }
                     # 요청 데이터 생성
                     suggestion_data = {
                         "storeId": store_id,
@@ -498,7 +508,7 @@ def send_request_notification(request_data, user_token):
 #함수: 건의 데이터를 서버로 전송
 
 def send_suggestion(suggestion_data, store_id):
-    #print("✅ send_request_notification 호출됨 - 건의를를 서버로 전송합니다.")
+    #print("✅ send_request_notification 호출됨 - 건의를 서버로 전송합니다.")
 
     suggestion_api_url = f"{api_url}/stores/{store_id}/suggestions"
     #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
@@ -642,7 +652,7 @@ function_specifications = [
     },
     {
     "name": "create_suggestion", #함수 이름:create_suggestion 건의 사항 전송
-    "description": "Handles user suggestion. If the assistant's response includes phrases like '건의 사항 내용', this function must be triggered.",
+    "description": "Handles user suggestion. This function MUST be called ONLY IF the assistant's response includes the exact phrase '건의 사항 내용:'. Do NOT call this function based on user input alone.",
     "parameters": {
         "type": "object",
         "properties": {
