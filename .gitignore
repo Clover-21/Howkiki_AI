@@ -20,6 +20,8 @@ __pycache__/
 !data/faiss_index
 !data/faiss_store.pkl
 
+#데이터 확인 파일
+data/
 
 # 로그 파일
 logs/

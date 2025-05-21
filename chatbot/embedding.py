@@ -1,46 +1,48 @@
+import sys
 import os
-import faiss
-import numpy as np
-import pickle
-from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings  # ✅ import 수정
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from api.config import Config
+from pymongo import MongoClient
+from langchain_openai import OpenAIEmbeddings
+from datetime import datetime  # timestamp용 추가
 
-# 환경 변수 로드
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-if not OPENAI_API_KEY:
-    raise ValueError("❌ OPENAI_API_KEY가 설정되지 않았습니다! `.env` 파일을 확인하세요.")
-
-class FAISSIndexer:
-    def __init__(self, text_file="data/haosum.txt", index_path="data/faiss_index/index.faiss", vector_path="data/faiss_index/vectors.pkl"):
+class MongoDBIndexer:
+    def __init__(self, text_file="data/haosum.txt", db_name="howkiki", collection_name="store", user_id="default_user"):
         self.text_file = text_file
-        self.index_path = index_path
-        self.vector_path = vector_path
-        self.embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)  # ✅ API 키 직접 전달
-        self.index = None
+        self.embeddings = OpenAIEmbeddings(openai_api_key=Config.OPENAI_API_KEY)
+        self.client = MongoClient(Config.MONGODB_URI)
+        self.collection = self.client[db_name][collection_name]
+        self.user_id = user_id  # 사용자 ID
 
     def load_text(self):
-        """haosum.txt 파일을 불러오기"""
-        with open(self.text_file, "r", encoding="utf-8") as f:
-            return f.readlines()  # 한 줄씩 리스트로 저장
+        # 텍스트 파일을 줄 단위로 읽고 빈 줄 제거
+        try:
+            with open(self.text_file, "r", encoding="utf-8") as f:
+                return [line.strip() for line in f if line.strip()]
+        except FileNotFoundError:
+            print("❌ 텍스트 파일이 존재하지 않습니다.")
+            return []
 
     def create_index(self):
-        """텍스트를 벡터화하여 FAISS에 저장"""
         docs = self.load_text()
-        doc_vectors = np.array(self.embeddings.embed_documents(docs)).astype("float32")
+        if not docs:
+            print("❌ 문서 없음. 인덱싱 중단.")
+            return
 
-        self.index = faiss.IndexFlatL2(doc_vectors.shape[1])
-        self.index.add(doc_vectors)
+        vectors = self.embeddings.embed_documents(docs)
 
-        # 저장
-        faiss.write_index(self.index, self.index_path)
-        with open(self.vector_path, "wb") as f:
-            pickle.dump(docs, f)
+        self.collection.drop()  # 기존 데이터 삭제
 
-        print(f"✅ FAISS 인덱스 저장 완료: {self.index_path}")
+        for doc, vec in zip(docs, vectors):
+            self.collection.insert_one({
+                "text": doc,                       # 원본 텍스트
+                "embedding": vec,                  # 벡터 리스트
+                "timestamp": datetime.utcnow(),    # 현재 시간 저장
+                "user_id": self.user_id            # 사용자 ID
+            })
 
-# 실행
+        print(f"✅ MongoDB에 {len(docs)}개 문서 임베딩 저장 완료")
+
 if __name__ == "__main__":
-    indexer = FAISSIndexer()
+    indexer = MongoDBIndexer()
     indexer.create_index()

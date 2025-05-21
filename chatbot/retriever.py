@@ -1,38 +1,41 @@
-import os
-import faiss
+from api.config import Config
+from pymongo import MongoClient
+from langchain_openai import OpenAIEmbeddings
 import numpy as np
-import pickle
-from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings  # ✅ 최신 버전 사용
 
-# 환경 변수 로드
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+class MongoDBRetriever:
+    def __init__(self, db_name="howkiki", collection_name="store", top_k=3, user_id="default_user"):
+        self.embeddings = OpenAIEmbeddings(openai_api_key=Config.OPENAI_API_KEY)
+        self.client = MongoClient(Config.MONGODB_URI)
+        self.collection = self.client[db_name][collection_name]
+        self.top_k = top_k
+        self.user_id = user_id  # 사용자 필터링을 위한 ID
 
-if not OPENAI_API_KEY:
-    raise ValueError("❌ OPENAI_API_KEY가 설정되지 않았습니다! `.env` 파일을 확인하세요.")
+    def cosine_similarity(self, a, b):
+        # 두 벡터 간 코사인 유사도 계산
+        a = np.array(a)
+        b = np.array(b)
+        if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+            return 0
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-class FAISSRetriever:
-    def __init__(self, index_path="data/faiss_index/index.faiss", vector_path="data/faiss_index/vectors.pkl"):
-        self.index_path = index_path
-        self.vector_path = vector_path
-        self.embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)  # ✅ API 키 직접 전달!
-        self.index = None
-        self.texts = None
-        self.load_index()
+    def search(self, query):
+        # 쿼리 임베딩
+        query_vec = self.embeddings.embed_documents([query])[0]
 
-    def load_index(self):
-        """FAISS 인덱스 로드"""
-        try:
-            self.index = faiss.read_index(self.index_path)
-            with open(self.vector_path, "rb") as f:
-                self.texts = pickle.load(f)  # 원본 텍스트 로드
-        except FileNotFoundError:
-            print("❌ FAISS 인덱스 파일이 없습니다. `embedding.py`를 먼저 실행하세요.")
+        # MongoDB에서 해당 user_id 문서만 조회
+        docs = list(self.collection.find({"user_id": self.user_id}))
 
-    def search(self, query, top_k=3):
-        """질문을 벡터화하여 FAISS에서 검색"""
-        query_vector = np.array(self.embeddings.embed_documents([query])).astype("float32")
-        D, I = self.index.search(query_vector, top_k)
-        results = [self.texts[i] for i in I[0] if i >= 0]  # 검색된 문장 반환
-        return results
+        if not docs:
+            print("❌ 해당 사용자의 문서가 존재하지 않습니다.")
+            return []
+
+        # 각 문서와 쿼리 간 코사인 유사도 계산
+        scored_docs = [
+            (doc["text"], self.cosine_similarity(doc["embedding"], query_vec))
+            for doc in docs
+        ]
+
+        # 유사도 상위 top_k 문서 반환
+        top_docs = sorted(scored_docs, key=lambda x: x[1], reverse=True)[:self.top_k]
+        return [doc[0] for doc in top_docs]
