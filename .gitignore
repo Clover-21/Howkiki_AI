@@ -15,11 +15,6 @@ __pycache__/
 # 
 .DS_Store
 
-
-# FAISS 벡터 DB 파일 (RAG 검색용)
-!data/faiss_index
-!data/faiss_store.pkl
-
 #데이터 확인 파일
 data/
 
