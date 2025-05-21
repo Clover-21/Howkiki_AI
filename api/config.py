@@ -12,6 +12,8 @@ class Config:
     REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
     REDIS_DB = int(os.getenv("REDIS_DB", 0))
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+    #Mongodb 관련 환경 변수
+    MONGODB_URI= os.getenv("MONGODB_URI")
 
 # 환경 변수 검증
 config = Config()
@@ -22,6 +24,7 @@ required_env_vars = {
     "REDIS_PORT": config.REDIS_PORT,
     "REDIS_DB": config.REDIS_DB,
     "REDIS_PASSWORD": config.REDIS_PASSWORD,
+    "MONGODB_URI" : config.MONGODB_URI
 }
 
 for var_name, var_value in required_env_vars.items():

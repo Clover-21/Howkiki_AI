@@ -3,7 +3,7 @@ import openai
 import sys
 import requests, json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from chatbot.retriever import FAISSRetriever  # RAG 적용 (FAISS 검색)
+from chatbot.retriever import MongoDBRetriever #mongodb로 수정
 from api.redis_client import get_conversation, save_conversation
 from api.config import config
 
@@ -174,7 +174,9 @@ system_prompt='''
 client = openai
 
 # FAISS 검색 인스턴스 생성 (RAG 적용)
-retriever = FAISSRetriever()
+#retriever = FAISSRetriever()
+#MongoDB 사용(RAG 적용)
+#retriever = MongoDBRetriever()
 
 ### 📌 **RAG 기반 GPT 응답 생성 함수**
 def get_rag_response(client, question,user_token):
@@ -197,15 +199,20 @@ def get_rag_response(client, question,user_token):
         {"role": "system", "content": system_prompt},
         {"role": "system", "content": "최종 주문 내역 있음"}
     ]
-    retrieved_info = retriever.search(question)  # FAISS 검색된 내용 가져오기
+        
+    # mongoDBRetriever에 검색
+    retriever = MongoDBRetriever()
+    retrieved_info = retriever.search(question)
 
     # 검색된 정보가 있을 경우, 시스템 프롬프트에 추가
     if retrieved_info:
+        # 리스트를 문자열로 변환
+        context_str = "\n".join([f"- {info}" for info in retrieved_info])
         system_prompt_with_context = f"""
         당신은 음식점 고객 서비스 챗봇입니다. 다음의 검색된 정보를 참고하여 답변하세요:
 
         --- 검색된 정보 ---
-        {retrieved_info}
+        {context_str}
         -------------------
 
         고객의 질문에 대해 관련 정보만 제공하고, --검색된 정보-- 및 대화기록을 바탕으로 답하세요.
