@@ -12,7 +12,7 @@ class MongoDBIndexer:
         self.embeddings = OpenAIEmbeddings(openai_api_key=Config.OPENAI_API_KEY)
         self.client = MongoClient(Config.MONGODB_URI)
         self.collection = self.client[db_name][collection_name]
-        self.user_id = user_id  # 사용자 ID
+        self.user_id = user_id  # 사용자 ID(= 매장 id)
 
     def load_text(self):
         # 텍스트 파일을 줄 단위로 읽고 빈 줄 제거
@@ -38,7 +38,7 @@ class MongoDBIndexer:
                 "text": doc,                       # 원본 텍스트
                 "embedding": vec,                  # 벡터 리스트
                 "timestamp": datetime.utcnow(),    # 현재 시간 저장
-                "user_id": self.user_id            # 사용자 ID
+                "user_id": self.user_id            # 사용자 ID (= 매장 id)
             })
 
         print(f"✅ MongoDB에 {len(docs)}개 문서 임베딩 저장 완료")
