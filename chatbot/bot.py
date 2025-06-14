@@ -3,7 +3,7 @@ import openai
 import sys
 import requests, json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from chatbot.retriever import MongoDBRetriever #mongodb로 수정
+from chatbot.retriever import MongoDBRetriever
 from api.redis_client import get_conversation, save_conversation
 from api.config import config
 
@@ -24,7 +24,6 @@ system_prompt='''
    - 고객이 주문한 메뉴와 수량을 관리하세요.
    - 대화 중 주문 내역을 업데이트하고, 주문을 취소하거나 수량을 변경하려는 요청도 처리하세요.
    - 메뉴명은 정확하게 작성하고, 메뉴명에 "()" 괄호를 포함하지 마세요.
-   - "최종 주문 내역 있음"이 확인되면, '이전 주문 내역은 주문 내역 페이지에서 확인해주세요!' 라고 말하고 주문을 처음부터 다시 손님에게 받으세요. 
 
    1). **주문 수정**:
    - 고객이 "라구짜장 1개는 빼줘"와 같은 요청을 하면 해당 항목의 수량을 줄이고, 수량이 0이 되면 삭제하세요.
@@ -248,9 +247,7 @@ def get_rag_response(client, question,user_token):
 
 ### 📌 **RAG 기반으로 사용자와 대화하는 함수**
 def chat_with_gpt(client,question,user_token, store_id, table_num):
-    """RAG 기반 챗봇 실행"""
-    #print(f"📌 [DEBUG] chat_with_gpt() 내부 store_id: {store_id}, table_num: {table_num}")  # 디버깅 추가
-    # RAG 기반 응답 생성
+    """RAG 기반 챗오더 실행"""
     response = get_rag_response(client, question, user_token)
 
     # Redis에서 대화 이력 불러오기(최종 주문 내역 확인)
@@ -260,7 +257,7 @@ def chat_with_gpt(client,question,user_token, store_id, table_num):
 
     function_call_result = None
 
-    if "해당 요청을 사장님께 전달해 드릴까요?" in response:
+    if ("해당 사항을 사장님께 전달" in response) or ("해당 사항으로 사장님께 남길" in response):
         if has_final_order:
             function_call_result = gpt_functioncall(client, response, user_token, store_id, table_num)
         else:
@@ -305,17 +302,13 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
 
         # 함수 호출 여부 확인
         if gpt_response.choices[0].message.function_call:
-            #print("함수 호출 감지")
-            #print(f"🛠 table_num: {table_num}, store_id: {store_id}")
             function_name = gpt_response.choices[0].message.function_call.name
             arguments = gpt_response.choices[0].message.function_call.arguments
 
             # 함수 호출이 주문 생성일 경우
             if function_name == "create_order":
-                #print("create_order 호출함")
                 
                 args = json.loads(arguments)
-                #print("json 파싱 성공")
                 final_order_data = {
                     "isTakeOut": args["isTakeOut"],  # 사용자 입력 반영
                     "tableNumber": int(table_num), #from frontend
@@ -325,27 +318,18 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
                         for item in args["finalOrderDetails"]
                     ]
                 }
-                #주문 API 호출(세션 토근 포함함)
-                print("🔹 최종 주문 데이터:", final_order_data)  # 추가 디버깅
                 result = post_order(final_order_data,user_token, store_id)
                 return result
             
             #요청 사항 생성 함수
             elif function_name == "create_request_notification":
-                #print("✅ create_request_notification 호출됨")  # 🛠 확인 로그 추가
-                #print(f" [DEBUG] function_call.arguments: {gpt_response.choices[0].message.function_call.arguments}")
-                #print(f" [DEBUG] arguments 타입: {type(arguments)}")
-
+                
                 # JSON 파싱 확인
                 try:
                     if isinstance(arguments, str):
-                        #print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
                         args = json.loads(arguments)  # JSON 파싱
                     else:
-                        #print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
                         args = arguments
-
-                    #print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
 
                     # 요청 데이터 생성
                     request_data = {
@@ -353,32 +337,23 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
                         "storeId": store_id,
                         "content": args["content"]
                     }
-                    #print(f"🔹 [DEBUG] request_data 생성 완료: {request_data}")  # 요청 데이터 확인
 
-                    # 🚀 send_request_notification 실행 전 로그 추가
-                    #print("🚀 [DEBUG] send_request_notification 실행 시도...")
-                    result = send_request_notification(request_data, user_token)  # 여기서 멈추는지 확인
-                    #print(f"✅ [DEBUG] send_request_notification 실행 완료, 반환값: {result}")
+                    result = send_request_notification(request_data, user_token)  
 
-                    return result  # 성공적으로 실행되었는지 확인
+                    return result  
 
                 except Exception as e:
-                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
                     return {"status": "error", "message": str(e)}
 
             #건의의 사항 생성 함수  
             elif function_name =="create_suggestion":
-                #print("create_suggestion 호출됨")
                 # JSON 파싱 확인
                 try:
                     if isinstance(arguments, str):
-                        #print("🔹 [DEBUG] arguments는 문자열이므로 JSON 변환 시도")
                         args = json.loads(arguments)  # JSON 파싱
                     else:
                         print("🔹 [DEBUG] arguments는 이미 JSON이므로 그대로 사용")
                         args = arguments
-
-                    #print("✅ [DEBUG] json.loads() 성공:", args)  # JSON 변환 성공 확인
                     
                     #  방어 로직 추가: GPT 응답에 '건의 사항 내용:'이 포함되어 있는지 확인
                     if "건의 사항 내용:" not in response:
@@ -391,22 +366,13 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
                         "storeId": store_id,
                         "content": args["content"]
                     }
-                    #print(f"🔹 [DEBUG] suggestion_data 생성 완료: {suggestion_data}")  # 요청 데이터 확인
-
-                    # 🚀 send_suggestion 실행 전 로그 추가
-                    #print("🚀 [DEBUG] send_suggestion 실행 시도...")
-                    result = send_suggestion(suggestion_data, store_id)  # 여기서 멈추는지 확인
-                    #print(f"✅ [DEBUG] send_suggestion 실행 완료, 반환값: {result}")
-
+                    result = send_suggestion(suggestion_data, store_id) 
                     return result  # 성공적으로 실행되었는지 확인
 
                 except Exception as e:
-                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
                     return {"status": "error", "message": str(e)}
 
             elif function_name == "get_menu_image":
-                #print("✅ get_menu_image 호출됨")
-
                 try:
                     args = json.loads(arguments) if isinstance(arguments, str) else arguments
                     
@@ -418,37 +384,28 @@ def gpt_functioncall(client, response,user_token, store_id, table_num):
 
 
                     # 사진 요청 API 호출
-                    #result = show_menu_image(image_data, store_id)
                     result = show_menu_image(args["menuName"],store_id)
 
                     return result
                 except Exception as e:
-                    #print(f"❌ [DEBUG] JSON 변환 또는 함수 실행 중 오류 발생: {e}")
                     return {"status": "error", "message": str(e)}
-
-        
             else:
                 return f"❌ 알 수 없는 함수 호출: {function_name}"
         else:
             return "Assistant Response: 함수 호출이 되지 않습니다."
 
     except Exception as e:
-        #print("❌ JSON 파싱 오류 발생:", e)
-        #print("❌ 문제의 arguments 값:", arguments)
         return f"❌ 함수 호출 처리 중 오류 발생: {e}"
 
 
 # 함수: 주문 데이터를 서버로 전송
 def post_order(final_order_data,user_token, store_id):
-    #print("post_order 호출함")
-    #print(f"🛠 store_id: {store_id}")
     """
     최종 주문 데이터를 POST 요청으로 서버에 전송합니다.
     요청 헤더에 sessionToken을 포함해야 함.
     """
     
     order_api_url= f"{api_url}/stores/{store_id}/orders"
-    #print(f"🌐 [DEBUG] API 요청 URL: {order_api_url}")
     headers = {
         "sessionToken": user_token,
         "Accept": "application/json",
@@ -461,8 +418,7 @@ def post_order(final_order_data,user_token, store_id):
 
         if response.status_code in [200, 201]:
             response_data = response.json()
-            print("✅ 주문 성공!") 
-            #return (json.dumps(response_data, indent=4, ensure_ascii=False))
+            print("✅ 주문 성공!")
             return response_data
         else:
             print(f"❌ 주문 생성 실패: HTTP {response.status_code}") 
@@ -474,27 +430,15 @@ def post_order(final_order_data,user_token, store_id):
 # 함수: 요청 데이터를 서버로 전송
 
 def send_request_notification(request_data, user_token):
-    #print("✅ send_request_notification 호출됨 - 요청을 서버로 전송합니다.")
     request_api_url = f"{api_url}/notification/new-request"
     headers = {
-        #"Authorization": f"Bearer {session_token}",  # Bearer 형식 확인
         "sessionToken": user_token,
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
-
-    #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
-    #print(f"🔹 [DEBUG] API 요청 URL: {request_api_url}")
-    #print(f"🔹 [DEBUG] 요청 헤더: {headers}")  
-
     try:
-        #print("🚀 [DEBUG] 서버로 요청을 보냅니다...")
         response = requests.post(request_api_url, json=request_data, headers=headers, timeout=10)
         
-        #print("✅ [DEBUG] 요청이 실행됨!")  # 이 로그가 찍히는지 확인!!
-        #print(f"🔍 [DEBUG] 응답 코드: {response.status_code}")
-        #print(f"🔹 [DEBUG] 응답 본문: {response.text}")
-
         if response.status_code in [200, 201]:
             response_data = response.json()
             print("✅ 요청 사항 알림 전송 성공!")
@@ -521,23 +465,11 @@ def send_request_notification(request_data, user_token):
         return {"status": "error", "message": str(e)}
     
 #함수: 건의 데이터를 서버로 전송
-
 def send_suggestion(suggestion_data, store_id):
-    #print("✅ send_request_notification 호출됨 - 건의를 서버로 전송합니다.")
 
     suggestion_api_url = f"{api_url}/stores/{store_id}/suggestions"
-    #print(f"🔹 [DEBUG] 전송 데이터: {json.dumps(request_data, indent=4, ensure_ascii=False)}")
-    #print(f"🔹 [DEBUG] API 요청 URL: {request_api_url}")
-    #print(f"🔹 [DEBUG] 요청 헤더: {headers}")  
-
     try:
-        #print("🚀 [DEBUG] 서버로 요청을 보냅니다...")
         response = requests.post(suggestion_api_url, json=suggestion_data)
-        
-        #print("✅ [DEBUG] 요청이 실행됨!")  # 이 로그가 찍히는지 확인!!
-        #print(f"🔍 [DEBUG] 응답 코드: {response.status_code}")
-        #print(f"🔹 [DEBUG] 응답 본문: {response.text}")
-
         if response.status_code in [200, 201]:
             response_data = response.json()
             print("✅ 건의 사항 알림 전송 성공!")
@@ -569,13 +501,11 @@ def show_menu_image(menuName,store_id):
     특정 가게(storeId)의 메뉴(menuName) 사진을 가져오는 함수.
     API 요청을 보내서 해당 메뉴의 사진 URL을 가져옴.
     """
-    #print("✅ show_menu_image 호출됨 - 메뉴 사진을 가져옵니다.")
 
     # 올바른 URL 형식 적용
     menu_image_api_url = f"{api_url}/stores/{store_id}/menu/img?menuName={menuName}"
 
     try:
-        #print(f"🚀 [DEBUG] 요청 URL: {url}")
         response = requests.get(menu_image_api_url)
 
         if response.status_code == 200:
@@ -704,10 +634,22 @@ function_specifications = [
 
 ]
 
+
+
 # 직접 실행 시 인터랙티브 모드 시작
 if __name__ == '__main__':
-    session_token="1235" #임의로 세션토큰 지정
-    store_id =" 1"
-    table_num="2"
-    chat_with_gpt(client,session_token, store_id, table_num)
+    session_token="103948230972305" #임의로 세션토큰 지정
+    store_id ="1"
+    table_num= "2"
 
+    print("안녕하세요.호우섬입니다.대화를 종료하려면 '종료'를 입력하세요.")
+    while True:
+        user_input = input("고객 > ")
+        if user_input.lower() == '종료':
+            break
+        
+        response = chat_with_gpt(client, user_input, session_token, store_id, table_num)
+        print(f"챗오더 > {response['response']}")
+        
+        if response['function_call_result']:
+            print(f"함수 호출 결과: {response['function_call_result']}")
