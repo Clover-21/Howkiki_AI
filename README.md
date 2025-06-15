@@ -1,9 +1,50 @@
 # 🤖 하우키키
 > 고객의 상황을 반영한 응대와 주문 결제 자동화를 제공하는 휴먼터치 AI 챗오더
 <br>
-이 레포지토리는 하우키키 AI 기능을 구현한 코드입니다.<br>OpenAI API와 RAG(Retrieval-Augmented Generation) 구조를 기반으로,
-매장 주문 및 문의 처리를 자동화하는 AI 챗오더를 제공합니다.
 
+### 🎙️ [캡스톤디자인 프로젝트 23팀] 하우키키 AI 레포지토리입니다.
+- 본 AI 레포지토리는 고객 대화를 이해하고, 주문 및 매장 정보 등을 자동 응답하는 AI 챗오더 서버를 구현한 코드입니다.
+- GPT-4o 기반 자연어 처리 모델과 RAG 구조를 활용하여 매장 정보를 반영한 응대를 제공하며, Function Calling으로 주문 및 요청 자동화를 처리합니다.
+- Redis를 이용한 세션 관리, MongoDB 기반 벡터 검색, Flask 기반 REST API, EC2 + GitHub Actions 기반 CI/CD 자동 배포 환경을 구축하였습니다.
+
+---
+## 🔧 기술 스택
+### 📌 Language & Framework
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)
+
+### 📌 LLM & RAG
+![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-4B8BBE?style=for-the-badge&logoColor=white)
+
+### 📌 Database
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+
+### 📌 Server & Web
+![Gunicorn](https://img.shields.io/badge/Gunicorn-499848?style=for-the-badge&logo=gunicorn&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+
+### 📌 DevOps & Deployment
+![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![AWS CodeDeploy](https://img.shields.io/badge/AWS_CodeDeploy-6DB33F?style=for-the-badge&logo=amazonaws&logoColor=white)
+
+### 📌 Version Control
+![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)
+
+
+### 🔎 기술 디테일
+
+- **Language:** Python 3.10  
+- **Framework:** Flask  
+- **LLM Model:** OpenAI GPT-4o  
+- **Embedding & RAG:** LangChain + MongoDB
+- **Database:** MongoDB, Redis
+- **Server 구성:** Gunicorn + Nginx (HTTPS + 리버스 프록시)  
+- **Deployment:** AWS EC2 + GitHub Actions & AWS CodeDeploy 기반 CI/CD
+---
 # 1. 프로젝트 구조 및 주요 Source code 설명
 
 📁 프로젝트 구조
@@ -214,6 +255,12 @@ python chatbot/bot.py
 
 - [NumPy](https://numpy.org)  
   - 목적: 벡터 연산 및 코사인 유사도 계산 등에 활용
+ 
+---
+
+## ✏️ SW 구조도
+![하우키키_SW구조도](https://github.com/user-attachments/assets/de43cbfc-c65b-4474-8839-6574c2ba3b6b)
+
 
 ## 🎬 하우키키 DEMO
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?logo=youtube&logoColor=white&style=flat)](https://www.youtube.com/watch?v=7vHkNP8n9T8)
