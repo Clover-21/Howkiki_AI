@@ -201,7 +201,7 @@ python chatbot/bot.py
   - 목적: 문서 임베딩, Retriever 구성, LLM 인터페이스 통합에 사용
 
 - [OpenAI API (openai-python)](https://platform.openai.com/docs/overview)  
-  - 목적: GPT-4o 기반 응답 생성을 위한 LLM 연동에 사용되며, Function Calling 기능을 활용하여 주문 처리 자동화를 지원
+  - 목적: GPT-4o 기반 응답 생성을 위한 LLM 연동에 사용되며, Function Calling 기능을 활용하여 주문 처리 등의 자동화를 지원
 
 - [Flask](https://flask.palletsprojects.com)  
   - 목적: RESTful API 서버 구현에 사용되며, 라우팅 및 요청/응답 처리를 담당
