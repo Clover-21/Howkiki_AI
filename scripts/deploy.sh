@@ -42,6 +42,10 @@ systemctl start howkiki.service
 # 서비스가 부팅 시 자동으로 시작되도록 설정
 systemctl enable howkiki.service
 
+# 개발 서비스 재시작
+systemctl restart howkiki-dev.service
+systemctl enable howkiki-dev.service
+
 #  Flask 애플리케이션 재시작
 echo "Restarting the Flask application..."
 ./scripts/start.sh
