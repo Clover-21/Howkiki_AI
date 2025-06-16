@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(
     app,
-    origins=["https://kikibot.netlify.app", "https://howkiki.netlify.app"],
+    origins=["https://kikibot.netlify.app", "https://howkiki.netlify.app", "http://localhost:3000"],
     methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"]
 )
